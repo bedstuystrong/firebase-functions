@@ -6,7 +6,7 @@ const { MessagingResponse, VoiceResponse } = twilio.twiml;
 module.exports = {
 
   // webhookMiddleware: twilio.webhook(functions.config().twilio.auth_token),
-  webhookMiddleware: (next) => next(),
+  webhookMiddleware: (_req, _res, next) => next(),
 
   createEmptyMessageResponse: () => {
     const twiml = new MessagingResponse();
