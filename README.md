@@ -1,5 +1,8 @@
 # firebase functions
 
+to deploy one set of functions:
+`firebase deploy --only functions:[namespace]`
+
 ## config
 
 https://firebase.google.com/docs/functions/config-env
