@@ -2,7 +2,7 @@ const functions = require('firebase-functions');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 
 const {
-  webhookMiddleware,
+  middleware,
   createEmptyMessageResponse,
   createEmptyVoiceResponse,
   createVoicemailRecordingPrompt,
@@ -13,10 +13,11 @@ const {
   createVoicemail,
 } = require('./airtable');
 
+
 module.exports = {
 
   sms: functions.https.onRequest((req, res) => {
-    return webhookMiddleware(req, res, async () => {
+    return middleware(req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const messageBody = req.body.Body;
 
@@ -30,14 +31,14 @@ module.exports = {
   }),
 
   voice: functions.https.onRequest((req, res) => {
-    return webhookMiddleware(req, res, () => {
+    return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
       res.send(createVoicemailRecordingPrompt());
     });
   }),
 
   voicemail: functions.https.onRequest((req, res) => {
-    return webhookMiddleware(req, res, async () => {
+    return middleware(req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const recordingUrl = `${req.body.RecordingUrl}.mp3`;
       const transcription = req.body.TranscriptionText;
@@ -52,7 +53,7 @@ module.exports = {
   }),
 
   empty: functions.https.onRequest((req, res) => {
-    return webhookMiddleware(req, res, () => {
+    return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
     });
