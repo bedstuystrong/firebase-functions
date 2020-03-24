@@ -24,6 +24,7 @@ module.exports = {
           {
             fields: {
               phone_number: phoneNumber,
+              intake_status: 'intake needed'
             }
           }
         ]);
