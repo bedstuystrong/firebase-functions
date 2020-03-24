@@ -12,15 +12,13 @@ const INTAKE_MESSAGES = functions.config().airtable.intake_messages_table;
 
 module.exports = {
 
-  base: base,
-
   getPhoneNumberId: (phoneNumber) => (
     base(INTAKE_CONTACTS).select({
       maxRecords: 1,
       filterByFormula: `{phone_number} = "${phoneNumber}"`
     }).firstPage().then(records => {
       if (records[0]) {
-        return records[0].id;
+        return records;
       } else {
         return base(INTAKE_CONTACTS).create([
           {
@@ -28,22 +26,34 @@ module.exports = {
               phone_number: phoneNumber,
             }
           }
-        ]).then(newRecords => {
-          return newRecords[0].id;
-        });
+        ]);
       }
-    })
+    }).then(records => records[0].id)
   ),
 
   createMessage: (phoneNumberId, message) => (
     base(INTAKE_MESSAGES).create([
       {
         fields: {
+          type: 'SMS',
           phone_number: [phoneNumberId],
           message: message,
         }
       },
     ])
   ),
+
+  createVoicemail: (phoneNumberId, recordingUrl, message) => (
+    base(INTAKE_MESSAGES).create([
+      {
+        fields: {
+          type: 'Voicemail',
+          phone_number: [phoneNumberId],
+          recording_url: recordingUrl, 
+          message: message,
+        }
+      },
+    ])
+  )
 
 };
