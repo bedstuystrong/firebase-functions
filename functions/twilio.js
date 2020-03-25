@@ -7,6 +7,11 @@ const { MessagingResponse, VoiceResponse } = twilio.twiml;
 
 module.exports = {
 
+  /**
+   * in production, the url we get in the express Request object
+   * doesn't have the full pathname (it's missing the function name)
+   * so we need to fix the url and pass it to validateExpressRequest
+   */
   middleware: (req, res, next) => {
     if (!req.header('X-Twilio-Signature')) {
       return res.status(400).send('No signature header error');
