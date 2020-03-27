@@ -29,7 +29,7 @@ function getPhoneNumberId(phoneNumber) {
         }
       ]);
     }
-  }).then(records => records[0].id)
+  }).then(records => records[0].id);
 }
 
 function createMessage(phoneNumberId, message) {
@@ -41,7 +41,7 @@ function createMessage(phoneNumberId, message) {
         message: message,
       }
     },
-  ])
+  ]);
 }
 
 function createVoicemail(phoneNumberId, recordingUrl, message) {
@@ -54,14 +54,14 @@ function createVoicemail(phoneNumberId, recordingUrl, message) {
         message: message,
       }
     },
-  ])
+  ]);
 }
 
 async function getAllIntakeTickets() {
-  const query = base(INTAKE).select()
-  const records = await query.all()
+  const query = base(INTAKE).select();
+  const records = await query.all();
 
-  return records.map(rec => [rec.id, rec.fields])
+  return records.map(rec => [rec.id, rec.fields]);
 }
 
 // Returns only intake tickets that haven't been processed yet
@@ -71,32 +71,32 @@ async function getChangedIntakeTickets() {
   const res = (await getAllIntakeTickets()).filter(
     ([, fields]) => {
       // TODO that "Status" is still missing for some of the tickets in airtable
-      if (!fields["_meta"] && fields["Status"]) {
-        return true
+      if (!fields['_meta'] && fields['Status']) {
+        return true;
       }
 
-      const meta = JSON.parse(fields["_meta"])
+      const meta = JSON.parse(fields['_meta']);
 
       // eslint-disable-next-line eqeqeq
-      return fields["Status"] != meta["lastSeenStatus"]
+      return fields['Status'] != meta['lastSeenStatus'];
     }
-  )
+  );
 
   // For all of these fields, set their `_meta` field
   for (const [id, fields] of res) {
-    let meta = (fields["_meta"]) ? JSON.parse(fields["_meta"]) : {}
-    meta["lastSeenStatus"] = fields["Status"] || null
+    let meta = (fields['_meta']) ? JSON.parse(fields['_meta']) : {};
+    meta['lastSeenStatus'] = fields['Status'] || null;
 
-    await base(INTAKE).update(id, { "_meta": JSON.stringify(meta) })
+    await base(INTAKE).update(id, { _meta: JSON.stringify(meta) });
   }
 
-  return res
+  return res;
 }
 
 module.exports = {
-  "getPhoneNumberId": getPhoneNumberId,
-  "createMessage": createMessage,
-  "createVoicemail": createVoicemail,
-  "getAllIntakeTickets": getAllIntakeTickets,
-  "getChangedIntakeTickets": getChangedIntakeTickets
-}
+  getPhoneNumberId: getPhoneNumberId,
+  createMessage: createMessage,
+  createVoicemail: createVoicemail,
+  getAllIntakeTickets: getAllIntakeTickets,
+  getChangedIntakeTickets: getChangedIntakeTickets
+};

@@ -4,13 +4,13 @@ const { getChangedIntakeTickets } = require('./airtable');
 
 // Runs every minute
 exports.poll.airtableIntakeTickets = functions.pubsub.schedule('* * * * *').onRun(async () => {
-    const changedTickets = await getChangedIntakeTickets()
+    const changedTickets = await getChangedIntakeTickets();
 
     if (changedTickets.length === 0) {
-        return null
+        return null;
     }
 
-    console.log(changedTickets)
+    console.log(changedTickets);
 
-    return null
-})
+    return null;
+});
