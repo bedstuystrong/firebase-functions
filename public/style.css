@@ -8,7 +8,7 @@ body {
 }
 
 @media screen and (min-width: 500px) {
-  h1, h2, p {
+  .main {
     max-width: 40rem;
   }
 }
