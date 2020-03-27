@@ -59,7 +59,6 @@ _Reminder: Please don't volunteer for delivery if you have any COVID-19/cold/flu
 async function getDeliveryDMContents(fields) {
     const intakeVolunteerslackID = await getVolunteerSlackID(fields["Intake Volunteer - This is you!"])
 
-    // TODO : gear the reimbursement flow towards delivery completion
     // TODO : error handling if volunteer id isn't present
     // TODO : don't send the volunteer this monstrosity of a message every time they take a delivery
     // TODO : template for household size info
@@ -92,8 +91,8 @@ async function getDeliveryDMContents(fields) {
 Please try to buy about a week's worth of food for the household. It's ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.
 
 When you complete the delivery, please:
-- Take a photo of the receipt
-- Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this reimbursement form> and you will be reimbursed from our community fund within 24 hours.
+- Take a photo of the receipt (if you paid for the items)
+- Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this delivery completion form>, and you will be reimbursed from our community fund within 24 hours.
 - For guidance on how to do a no-contact delivery, check out our <https://docs.google.com/document/d/1-sXwubRG3yBw2URDYcrSGZSj94tY_Ydk4xxVDmgRFh8/edit?usp=sharing|Delivery Volunteer FAQ guide>.
 
 If you have any questions/problems, please post in <#${CHANNEL_TO_ID["delivery_volunteers"]}>. Thanks again for volunteering!
