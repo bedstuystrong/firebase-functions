@@ -237,9 +237,6 @@ module.exports = {
                 await updateIntakeTicket(id, {}, meta)
             }
 
-            // TODO : disable this logging later, might be useful as we get this up and running
-            console.log(`All changed tickets: ${changedTickets}`)
-
             return null
         })
     }
