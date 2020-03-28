@@ -18,8 +18,8 @@ const FIELD_NAMES = {
   method: 'Method of Contact',
   status: 'Status',
   phoneNumber: 'Phone Number',
-  message: 'Message',
-  voicemailRecording: 'Voicemail Recording',
+  message: 'Transcribed Message',
+  voicemailRecording: 'Message Recording',
 };
 
 function getPhoneNumberId(phoneNumber) {
