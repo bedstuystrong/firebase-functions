@@ -13,8 +13,9 @@
   "rules": {
 
     "quotes": ["warn", "single"],
-    "quote-props": ["warn", "as-needed"],
+    "quote-props": ["warn", "consistent-as-needed"],
     "semi": ["warn", "always"],
+    "indent": ["warn", 2],
 
     // Removed rule "disallow the use of console" from recommended eslint rules
     "no-console": "off",
