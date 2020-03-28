@@ -7,21 +7,22 @@ const airtable = new Airtable({
 
 const base = airtable.base(functions.config().airtable.base_id);
 
-const INTAKE_CONTACTS = functions.config().airtable.intake_contacts_table;
-const INTAKE_MESSAGES = functions.config().airtable.intake_messages_table;
-const VOLUNTEER_FORM = functions.config().airtable.volunteers_table
+const INTAKE_CONTACTS_TABLE = functions.config().airtable.intake_contacts_table;
+const INTAKE_MESSAGES_TABLE = functions.config().airtable.intake_messages_table;
+const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table
 // const INBOUND = functions.config().airtable.inbound_table;
-const INTAKE = functions.config().airtable.intake_table;
+const INTAKE_TABLE = functions.config().airtable.intake_table;
+const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 
 function getPhoneNumberId(phoneNumber) {
-  return base(INTAKE_CONTACTS).select({
+  return base(INTAKE_CONTACTS_TABLE).select({
     maxRecords: 1,
     filterByFormula: `{phone_number} = "${phoneNumber}"`
   }).firstPage().then(records => {
     if (records[0]) {
       return records;
     } else {
-      return base(INTAKE_CONTACTS).create([
+      return base(INTAKE_CONTACTS_TABLE).create([
         {
           fields: {
             phone_number: phoneNumber,
@@ -34,7 +35,7 @@ function getPhoneNumberId(phoneNumber) {
 }
 
 function createMessage(phoneNumberId, message) {
-  return base(INTAKE_MESSAGES).create([
+  return base(INTAKE_MESSAGES_TABLE).create([
     {
       fields: {
         type: 'SMS',
@@ -46,7 +47,7 @@ function createMessage(phoneNumberId, message) {
 }
 
 function createVoicemail(phoneNumberId, recordingUrl, message) {
-  base(INTAKE_MESSAGES).create([
+  base(INTAKE_MESSAGES_TABLE).create([
     {
       fields: {
         type: 'Voicemail',
@@ -58,26 +59,38 @@ function createVoicemail(phoneNumberId, recordingUrl, message) {
   ])
 }
 
-async function getAllIntakeTickets() {
-  const query = base(INTAKE).select()
+function _parseRecord(record) {
+  return [
+    record.id,
+    record.fields,
+    (record.fields["_meta"]) ? JSON.parse(record.fields["_meta"]) : {}
+  ]
+}
+
+async function getAllRecords(table) {
+  const query = base(table).select()
   const records = await query.all()
 
-  return records.map(
-    rec => [
-      rec.id,
-      rec.fields,
-      (rec.fields["_meta"]) ? JSON.parse(rec.fields["_meta"]) : {}
-    ]
-  )
+  return records.map(_parseRecord)
+}
+
+async function getRecordsWithTicketID(table, ticketID) {
+  const query = base(table).select({
+    filterByFormula: `{Ticket ID} = "${ticketID}"`
+  })
+  const records = await query.all()
+
+  return records.map(_parseRecord)
 }
 
 // Returns only intake tickets that haven't been processed yet
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
-async function getChangedIntakeTickets() {
+// NOTE that this function will only work if the table has a `Status` field
+async function getChangedRecords(table) {
   // Get all tickets with updated statuses
-  return (await getAllIntakeTickets()).filter(
+  return (await getAllRecords(table)).filter(
     ([, fields, meta]) => {
-      // TODO that "Status" is still missing for some of the tickets in airtable
+      // NOTE that "Status" is still missing in airtable indicates we should ignore this message
       if (Object.keys(meta).length === 0 && fields["Status"]) {
         return true
       }
@@ -89,28 +102,34 @@ async function getChangedIntakeTickets() {
 }
 
 // TODO : return the new record
-async function updateIntakeTicket(id, delta, meta) {
+async function updateRecord(table, id, delta, meta) {
   let fields = Object.assign({}, delta)
 
   if (meta) {
     fields["_meta"] = JSON.stringify(meta)
   }
- 
-  await base(INTAKE).update(id, fields)
+
+  await base(table).update(id, fields)
 }
 
 async function getVolunteerSlackID(volunteerID) {
-  const rec = await base(VOLUNTEER_FORM).find(volunteerID)
+  const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID)
 
   return rec.fields["Slack User ID"]
 }
 
 module.exports = {
-  getPhoneNumberId: getPhoneNumberId,
+  INTAKE_CONTACTS_TABLE: INTAKE_CONTACTS_TABLE,
+  INTAKE_MESSAGES_TABLE: INTAKE_MESSAGES_TABLE,
+  INTAKE_TABLE: INTAKE_TABLE,
+  REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
+  VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
   createMessage: createMessage,
   createVoicemail: createVoicemail,
-  getAllIntakeTickets: getAllIntakeTickets,
-  getChangedIntakeTickets: getChangedIntakeTickets,
-  updateIntakeTicket: updateIntakeTicket,
+  getAllRecords: getAllRecords,
+  getChangedRecords: getChangedRecords,
+  getPhoneNumberId: getPhoneNumberId,
+  getRecordsWithTicketID: getRecordsWithTicketID,
   getVolunteerSlackID: getVolunteerSlackID,
+  updateRecord: updateRecord,
 }
