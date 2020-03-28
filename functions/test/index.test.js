@@ -16,10 +16,11 @@ test.mockConfig(
         },
         "slack": {
             "token": "<REPLACE>",
-            "northeast_bedstuy": GARAGE_CHAN,
-            "northwest_bedstuy": GARAGE_CHAN,
-            "southeast_bedstuy": GARAGE_CHAN,
-            "southwest_bedstuy": GARAGE_CHAN,
+            "northeast_bedstuy": GARAGE_CHAN_ID,
+            "northwest_bedstuy": GARAGE_CHAN_ID,
+            "southeast_bedstuy": GARAGE_CHAN_ID,
+            "southwest_bedstuy": GARAGE_CHAN_ID,
+            "delivery_volunteers": GARAGE_CHAN_ID,
         },
     }
 )
