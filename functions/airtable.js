@@ -7,26 +7,34 @@ const airtable = new Airtable({
 
 const base = airtable.base(functions.config().airtable.base_id);
 
-const INTAKE_CONTACTS_TABLE = functions.config().airtable.intake_contacts_table;
-const INTAKE_MESSAGES_TABLE = functions.config().airtable.intake_messages_table;
+const INBOUND_CONTACTS_TABLE = functions.config().airtable.inbound_contacts_table;
+const INBOUND_TABLE = functions.config().airtable.inbound_table;
 const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table
-// const INBOUND = functions.config().airtable.inbound_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 
+// TODO can we store these easily in config?
+const FIELD_NAMES = {
+  method: 'Method of Contact',
+  status: 'Status',
+  phoneNumber: 'Phone Number',
+  message: 'Message',
+  voicemailRecording: 'Voicemail Recording',
+};
+
 function getPhoneNumberId(phoneNumber) {
-  return base(INTAKE_CONTACTS_TABLE).select({
+  return base(INBOUND_CONTACTS_TABLE).select({
     maxRecords: 1,
     filterByFormula: `{phone_number} = "${phoneNumber}"`
   }).firstPage().then(records => {
     if (records[0]) {
       return records;
     } else {
-      return base(INTAKE_CONTACTS_TABLE).create([
+      return base(INBOUND_CONTACTS_TABLE).create([
         {
           fields: {
             phone_number: phoneNumber,
-            intake_status: 'intake needed'
+            intake_status: 'Intake Needed'
           }
         }
       ]);
@@ -34,26 +42,28 @@ function getPhoneNumberId(phoneNumber) {
   }).then(records => records[0].id)
 }
 
-function createMessage(phoneNumberId, message) {
-  return base(INTAKE_MESSAGES_TABLE).create([
+function createMessage(phoneNumber, message) {
+  return base(INBOUND_TABLE.create([
     {
       fields: {
-        type: 'SMS',
-        phone_number: [phoneNumberId],
-        message: message,
+        [FIELD_NAMES.method]: 'Text Message',
+        [FIELD_NAMES.status]: 'Intake Needed',
+        [FIELD_NAMES.phoneNumber]: phoneNumber,
+        [FIELD_NAMES.message]: message,
       }
     },
   ])
 }
 
-function createVoicemail(phoneNumberId, recordingUrl, message) {
-  base(INTAKE_MESSAGES_TABLE).create([
+function createVoicemail(phoneNumber, recordingUrl, message) {
+  base(INBOUND_TABLE).create([
     {
       fields: {
-        type: 'Voicemail',
-        phone_number: [phoneNumberId],
-        recording_url: recordingUrl,
-        message: message,
+        [FIELD_NAMES.method]: 'Phone Call',
+        [FIELD_NAMES.status]: 'Intake Needed',
+        [FIELD_NAMES.phoneNumber]: phoneNumber,
+        [FIELD_NAMES.message]: message,
+        [FIELD_NAMES.voicemailRecording]: recordingUrl,
       }
     },
   ])
@@ -83,7 +93,7 @@ async function getRecordsWithTicketID(table, ticketID) {
   return records.map(_parseRecord)
 }
 
-// Returns only intake tickets that haven't been processed yet
+// Returns only intake tickets whose status has changed since we last checked
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
 // NOTE that this function will only work if the table has a `Status` field
 async function getChangedRecords(table) {
@@ -101,13 +111,24 @@ async function getChangedRecords(table) {
   )
 }
 
+<<<<<<< HEAD
 // TODO : return the new record
 async function updateRecord(table, id, delta, meta) {
   let fields = Object.assign({}, delta)
 
   if (meta) {
     fields["_meta"] = JSON.stringify(meta)
+=======
+  // For all of these fields, set their `_meta` field
+  const updates = [];
+  for (const [id, fields] of res) {
+    let meta = (fields['_meta']) ? JSON.parse(fields['_meta']) : {};
+    meta['lastSeenStatus'] = fields['Status'] || null;
+
+    updates.push(base(INTAKE).update(id, { _meta: JSON.stringify(meta) }));
+>>>>>>> 7db729c... use one inbound table for now
   }
+  await Promise.all(updates);
 
   await base(table).update(id, fields)
 }
