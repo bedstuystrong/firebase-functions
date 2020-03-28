@@ -69,19 +69,8 @@ async function getDeliveryDMContents(fields) {
     // TODO : gear the reimbursement flow towards delivery completion
     // TODO : error handling if volunteer id isn't present
     // TODO : don't send the volunteer this monstrosity of a message every time they take a delivery
-    // TODO : template for household size info
-    /*
-    Household size: < household size >
-    ...
-    Spending guidance:
-    
-    [if household size = 1 or 2 ppl] "$75/per person (1-2 ppl)"
-    [if household size = 3-5 ppl] "$250 for a medium household (3-5 ppl)"
-    [if household size = 6+ ppl] "$350 for a large household (6+ ppl)"
 
-    See: https://github.com/bedstuystrong/firebase-functions/issues/4#issuecomment-605095340
-    */
-    return `<@${intakeVolunteerslackID}> assigned a request to you. Thanks so much for taking care of this delivery!
+    let content = `<@${intakeVolunteerslackID}> assigned a request to you. Thanks so much for taking care of this delivery!
 
 *Ticket ID*: ${fields["Ticket ID"]}
 
@@ -94,13 +83,32 @@ async function getDeliveryDMContents(fields) {
 
 *Need*: ${fields["Need Category"]}
 *Description*: ${fields["Task Overview - Posts in Slack"]}
-*Requested*: ${fields["Items / Services Requested - Posts in Slack"]}
+*Household Size*: ${(fields["Household Size"]) ? fields["Household Size"] : "?"}
+*Requested*: ${fields["Items / Services Requested - Posts in Slack"]}\n`
 
-Please try to buy about a week's worth of food for the household. It's ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.
+    // TODO : this is a suspiciously hacky
+    if (fields["Household Size"]) {
+        content += "*Spending guidance:*\n"
+        const householdSize = parseInt(fields["Household Size"])
 
+        if (householdSize <= 2) {
+            content += "- $75/per person (1-2 ppl)\n"
+        } else if (householdSize <= 5) {
+            content += "- $250 for a medium household (3-5 ppl)\n"
+        } else {
+            content += "- $350 for a large household (6+ ppl)\n"
+        }
+
+        // NOTE that we want the next next message to be a bullet only if we have a "Spending Guidance section"
+        content += "- "
+    }
+
+    content += "Please try to buy about a week's worth of food for the household. It's ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.\n"
+
+    content += `
 When you complete the delivery, please:
 - Take a photo of the receipt
-- Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this reimbursement form> and you will be reimbursed from our community fund within 24 hours.
+- Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this completion form> to let us know that the delivery is completed. If you need reimbursement please fill out the reimbursement section, and you will be reimbursed from our community fund within 24 hours.
 - For guidance on how to do a no-contact delivery, check out our <https://docs.google.com/document/d/1-sXwubRG3yBw2URDYcrSGZSj94tY_Ydk4xxVDmgRFh8/edit?usp=sharing|Delivery Volunteer FAQ guide>.
 
 If you have any questions/problems, please post in <#${CHANNEL_TO_ID["delivery_volunteers"]}>. Thanks again for volunteering!
@@ -108,6 +116,8 @@ If you have any questions/problems, please post in <#${CHANNEL_TO_ID["delivery_v
 _Reminder: Please don't volunteer for delivery if you have any COVID-19/cold/flu-like symptoms, or have come into contact with someone that's tested positive._
 
 :heart: :heart: :heart:`
+
+    return content
 }
 
 async function onNewIntake(id, fields, meta) {
