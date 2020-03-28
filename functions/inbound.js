@@ -21,9 +21,9 @@ module.exports = {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const messageBody = req.body.Body;
 
-      const phoneNumberId = await getPhoneNumberId(fromNumber);
+      // const phoneNumberId = await getPhoneNumberId(fromNumber);
 
-      await createMessage(phoneNumberId, messageBody);
+      await createMessage(fromNumber, messageBody);
 
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyMessageResponse());
@@ -43,9 +43,9 @@ module.exports = {
       const recordingUrl = `${req.body.RecordingUrl}.mp3`;
       const transcription = req.body.TranscriptionText;
 
-      const phoneNumberId = await getPhoneNumberId(fromNumber);
+      // const phoneNumberId = await getPhoneNumberId(fromNumber);
 
-      await createVoicemail(phoneNumberId, recordingUrl, transcription);
+      await createVoicemail(fromNumber, recordingUrl, transcription);
 
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
