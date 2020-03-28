@@ -43,7 +43,7 @@ function getPhoneNumberId(phoneNumber) {
 }
 
 function createMessage(phoneNumber, message) {
-  return base(INBOUND_TABLE.create([
+  return base(INBOUND_TABLE).create([
     {
       fields: {
         [FIELD_NAMES.method]: 'Text Message',
@@ -52,7 +52,7 @@ function createMessage(phoneNumber, message) {
         [FIELD_NAMES.message]: message,
       }
     },
-  ]))
+  ])
 }
 
 function createVoicemail(phoneNumber, recordingUrl, message) {
