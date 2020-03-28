@@ -9,8 +9,7 @@ const base = airtable.base(functions.config().airtable.base_id);
 
 const INTAKE_CONTACTS = functions.config().airtable.intake_contacts_table;
 const INTAKE_MESSAGES = functions.config().airtable.intake_messages_table;
-// TODO : set this in the config
-const VOLUNTEER_FORM = "Volunteers - Form Responses"
+const VOLUNTEER_FORM = functions.config().airtable.volunteers_table
 // const INBOUND = functions.config().airtable.inbound_table;
 const INTAKE = functions.config().airtable.intake_table;
 
@@ -89,7 +88,7 @@ async function getChangedIntakeTickets() {
   )
 }
 
-// TODO : return the new records
+// TODO : return the new record
 async function updateIntakeTicket(id, delta, meta) {
   let fields = Object.assign({}, delta)
 
