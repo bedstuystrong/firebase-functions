@@ -59,6 +59,7 @@ _Reminder: Please don't volunteer for delivery if you have any COVID-19/cold/flu
 async function getDeliveryDMContents(fields) {
     const intakeVolunteerslackID = await getVolunteerSlackID(fields["Intake Volunteer - This is you!"])
 
+    // TODO : gear the reimbursement flow towards delivery completion
     // TODO : error handling if volunteer id isn't present
     // TODO : don't send the volunteer this monstrosity of a message every time they take a delivery
     // TODO : template for household size info
