@@ -5,20 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bed-Stuy Strong: Sign Up to Volunteer</title>
   <link rel="stylesheet" type="text/css" href="/style.css">
+  <style type="text/css">
+    .flex {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .main.left {
+      max-width: none;
+      flex: 0 1 50%;
+    }
+    .right {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .right img {
+      max-height: 240px;
+    }
+  </style>
 </head>
 <body>
-  <div class="main">
-    <h1><a href="/">Bed-Stuy Strong</a></h1>
-    <h2>About Us</h2>
-    <p>
-      We're a mutual aid network of over 2000 volunteers and neighbors from across Bed-Stuy, and we'd love you to
-      join us in supporting our neighbors during the COVID-19 crisis and beyond.
-    </p>
-    <h2>Sign Up to Volunteer</h2>
-    <p>
-      Please sign up to volunteer here. If you're not already in our Slack network where we share volunteer
-      opportunities, <a href="https://bedstuystrong.com/slack">join here</a>.
-    </p>
+  <div class="flex">
+    <div class="main left">
+      <h1><a href="/">Bed-Stuy Strong</a></h1>
+      <h2>About Us</h2>
+      <p>
+        We're a mutual aid network of over 2000 volunteers and neighbors from across Bed-Stuy, and we'd love you to
+        join us in supporting our neighbors during the COVID-19 crisis and beyond.
+      </p>
+      <h2>Sign Up to Volunteer</h2>
+      <p>
+        Please sign up to volunteer here. If you're not already in our Slack network where we share volunteer
+        opportunities, <a href="https://bedstuystrong.com/slack">join here</a>.
+      </p>
+    </div>
+    <div class="right">
+      <img src="map.png" alt="Map of Bed-Stuy quadrants, with Gates Ave as the North-South boundary and Marcy Ave as the East-West boundary" />
+    </div>
   </div>
   <script src="https://static.airtable.com/js/embed/embed_snippet_v1.js"></script><iframe
     class="airtable-embed airtable-dynamic-height"
