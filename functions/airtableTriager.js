@@ -2,7 +2,14 @@ const functions = require('firebase-functions');
 
 const Slack = require("slack")
 
-const { getChangedIntakeTickets, updateIntakeTicket, getVolunteerSlackID } = require("./airtable")
+const {
+    getChangedRecords,
+    updateRecord,
+    getVolunteerSlackID,
+    getRecordsWithTicketID,
+    INTAKE_TABLE,
+    REIMBURSEMENTS_TABLE
+} = require("./airtable")
 
 const bot = new Slack({ "token": functions.config().slack.token })
 
@@ -106,6 +113,8 @@ _Reminder: Please don't volunteer for delivery if you have any COVID-19/cold/flu
 async function onNewIntake(id, fields, meta) {
     console.log(`onNewIntake(${id})`)
 
+    // TODO : handle going back from assigned state
+
     if (meta["intakePostChan"] || meta["intakePostTs"]) {
         console.error(`Already processed ticket: ${id}`)
         return
@@ -123,6 +132,7 @@ async function onNewIntake(id, fields, meta) {
     const res = await bot.chat.postMessage({
         "channel": neighborhoodChanID,
         "text": await getIntakePostContent(fields),
+        unfurl_media: false,
     })
 
     // TODO : we should retry as we might be getting throttled
@@ -131,6 +141,7 @@ async function onNewIntake(id, fields, meta) {
         return
     }
 
+    // TODO : add a link the slack post
     meta["intakePostChan"] = neighborhoodChanID
     meta["intakePostTs"] = res["ts"]
 }
@@ -162,7 +173,7 @@ async function onIntakeAssigned(id, fields, meta) {
         channel: "UV5KXJYTC",
         as_user: true,
         text: await getDeliveryDMContents(fields),
-        unfurl_media: true,
+        unfurl_media: false,
     })
 
     if (!res["ok"]) {
@@ -195,6 +206,61 @@ async function onIntakeCompleted(id, fields, meta) {
     }
 }
 
+async function onReimbursementNew(id, fields) {
+    console.log(`onReimbursementNew(${id})`)
+
+    // TODO : error handling
+    const intakeRecords = await getRecordsWithTicketID(INTAKE_TABLE, fields["Ticket ID"])
+
+    if (intakeRecords.length > 1) {
+        console.error(`Multiple intake records exist for this ticket id: ${fields["Ticket ID"]}`)
+    } else if (intakeRecords.length === 0) {
+        console.error(`No intake records exist for this ticket id: ${fields["Ticket ID"]}`)
+    } else {
+        console.log("updating...")
+        // Close the intake ticket
+        // NOTE that this will trigger the intake ticket on complete function
+        const [intakeID, , intakeMeta] = intakeRecords[0]
+        await updateRecord(INTAKE_TABLE, intakeID, { "Status": "Complete" }, intakeMeta)
+    }
+
+    // TODO: send reimbursement message
+}
+
+// Processes all tickets in a table that have a new status
+async function pollTable(table, statusToCallbacks) {
+    const changedTickets = await getChangedRecords(table)
+
+    if (changedTickets.length === 0) {
+        return
+    }
+
+    // TODO : it is possible for us to miss a step in the intake ticket state transitions.
+    // For example, an intake ticket should go from "Seeking Volunteer" -> "Assigned" -> 
+    // "Complete". Since we only trigger on the current state, there is a race condition 
+    // where we could miss the intermediate state (i.e. assigned).
+    //
+    // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
+    for (const [id, fields, meta] of changedTickets) {
+        console.log(`Processing record: ${id}`)
+
+        const status = fields["Status"]
+        if (status in statusToCallbacks) {
+            for (const cb of statusToCallbacks[status]) {
+                // eslint-disable-next-line callback-return
+                await cb(id, fields, meta)
+            }
+        } else {
+            console.error(`Record has invalid status: ${status}`)
+        }
+
+        // Once we have processed all callbacks for a ticket, note that we have seen it,
+        // and update its meta field
+        meta["lastSeenStatus"] = fields["Status"] || null
+        await updateRecord(table, id, {}, meta)
+    }
+}
+
 // Runs every minute
 module.exports = {
     poll: {
@@ -206,38 +272,18 @@ module.exports = {
                 "Not Bed-Stuy": [],
             }
 
-            const changedTickets = await getChangedIntakeTickets()
-
-            if (changedTickets.length === 0) {
-                return null
-            }
-
-            // TODO : it is possible for us to miss a step in the intake ticket state transitions.
-            // A ticket should go from "Seeking Volunteer" -> "Assigned" -> "Complete". Since we
-            // only trigger on the current state, there is a race condition where we could miss
-            // the intermediate state (i.e. assigned)
-            //
-            // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-            for (const [id, fields, meta] of changedTickets) {
-                console.log(`Processing intake ticket (${fields["Ticket ID"]}): ${id}`)
-
-                const status = fields["Status"]
-                if (status in STATUS_TO_CBS) {
-                    for (const cb of STATUS_TO_CBS[status]) {
-                        // eslint-disable-next-line callback-return
-                        await cb(id, fields, meta)
-                    }
-                } else {
-                    console.error(`Ticket has invalid status: ${status}`)
-                }
-
-                // Once we have processed all callbacks for a ticket, note that we have seen it,
-                // and update its meta field
-                meta["lastSeenStatus"] = fields["Status"] || null
-                await updateIntakeTicket(id, {}, meta)
-            }
-
+            await pollTable(INTAKE_TABLE, STATUS_TO_CBS)
             return null
-        })
+        }),
+        reimbursements: functions.pubsub.schedule('* * * * *').onRun(async () => {
+            const STATUS_TO_CBS = {
+                "New": [onReimbursementNew],
+                "In Progress": [],
+                "Complete": [],
+            }
+
+            await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CBS)
+            return null
+        }),
     }
 }
