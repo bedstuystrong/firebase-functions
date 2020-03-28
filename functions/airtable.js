@@ -52,7 +52,7 @@ function createMessage(phoneNumber, message) {
         [FIELD_NAMES.message]: message,
       }
     },
-  ])
+  ]))
 }
 
 function createVoicemail(phoneNumber, recordingUrl, message) {
@@ -129,8 +129,7 @@ async function getVolunteerSlackID(volunteerID) {
 }
 
 module.exports = {
-  INTAKE_CONTACTS_TABLE: INTAKE_CONTACTS_TABLE,
-  INTAKE_MESSAGES_TABLE: INTAKE_MESSAGES_TABLE,
+  INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
