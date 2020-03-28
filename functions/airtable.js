@@ -111,24 +111,13 @@ async function getChangedRecords(table) {
   )
 }
 
-<<<<<<< HEAD
 // TODO : return the new record
 async function updateRecord(table, id, delta, meta) {
   let fields = Object.assign({}, delta)
 
   if (meta) {
     fields["_meta"] = JSON.stringify(meta)
-=======
-  // For all of these fields, set their `_meta` field
-  const updates = [];
-  for (const [id, fields] of res) {
-    let meta = (fields['_meta']) ? JSON.parse(fields['_meta']) : {};
-    meta['lastSeenStatus'] = fields['Status'] || null;
-
-    updates.push(base(INTAKE).update(id, { _meta: JSON.stringify(meta) }));
->>>>>>> 7db729c... use one inbound table for now
   }
-  await Promise.all(updates);
 
   await base(table).update(id, fields)
 }
