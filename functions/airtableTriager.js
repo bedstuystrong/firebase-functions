@@ -18,8 +18,8 @@ const NEIGHBORHOOD_TO_CHANNEL = {
     "NE": "northeast_bedstuy",
     "SW": "southwest_bedstuy",
     "SE": "southeast_bedstuy",
-    // "Clinton Hill / Fort Greene": "clintonhill",
-    // "Crown Heights / Brownsville / Flatbush": "crownheights",
+    "Clinton Hill / Fort Greene": "clintonhill",
+    "Crown Heights / Brownsville / Flatbush": "crownheights",
 }
 
 const STATUS_TO_EMOJI = {
@@ -90,7 +90,7 @@ async function getDeliveryDMContents(fields) {
 *Phone*: ${fields["Phone Number"]}
 *Timeline*: ${fields["Need immediacy"]}
 *Language*: ${fields["Language"]}
-*FYI Special Conditions: ${fields["Vulnerability"]}
+*FYI Special Conditions*: ${fields["Vulnerability"]}
 
 *Need*: ${fields["Need Category"]}
 *Description*: ${fields["Task Overview - Posts in Slack"]}
