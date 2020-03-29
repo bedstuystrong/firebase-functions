@@ -11,14 +11,19 @@ config structure
 ```json
 {
   "airtable": {
-    "intake_messages_table": "",
-    "intake_contacts_table": "",
     "api_key": "",
-    "base_id": ""
+    "base_id": "",
+    "inbound_table": "",
+    "intake_table": "",
+    "reimbursements_table": "",
+    "volunteers_table": ""
   },
   "twilio": {
     "auth_token": "",
     "sid": ""
+  },
+  "slack": {
+    "token": ""
   }
 }
 ```

@@ -1,2 +1,2 @@
-exports.intake = require('./intake');
+exports.inbound = require('./inbound');
 exports.airtableTriager = require('./airtableTriager');
