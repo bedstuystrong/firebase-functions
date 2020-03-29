@@ -79,7 +79,7 @@ async function getDeliveryDMContents(fields) {
 *Phone*: ${fields["Phone Number"]}
 *Timeline*: ${fields["Need immediacy"]}
 *Language*: ${fields["Language"]}
-*FYI Special Conditions: ${fields["Vulnerability"]}
+*FYI Special Conditions*: ${fields["Vulnerability"]}
 
 *Need*: ${fields["Need Category"]}
 *Description*: ${fields["Task Overview - Posts in Slack"]}
@@ -106,7 +106,7 @@ async function getDeliveryDMContents(fields) {
     content += "Please try to buy about a week's worth of food for the household. It's ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.\n"
 
     content += `
-When you complete the delivery, please:
+*When you complete the delivery, please:*
 - Take a photo of the receipt
 - Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this completion form> to let us know that the delivery is completed. If you need reimbursement please fill out the reimbursement section, and you will be reimbursed from our community fund within 24 hours.
 - For guidance on how to do a no-contact delivery, check out our <https://docs.google.com/document/d/1-sXwubRG3yBw2URDYcrSGZSj94tY_Ydk4xxVDmgRFh8/edit?usp=sharing|Delivery Volunteer FAQ guide>.
@@ -180,7 +180,7 @@ async function onIntakeAssigned(id, fields, meta) {
 
     // TODO : use the delivery volunteer's id
     res = await bot.chat.postMessage({
-        channel: "UV5KXJYTC",
+        channel: await getVolunteerSlackID(fields["Delivery Volunteer"]),
         as_user: true,
         text: await getDeliveryDMContents(fields),
         unfurl_media: false,
