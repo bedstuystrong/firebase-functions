@@ -6,12 +6,13 @@ const { getChangedIntakeTickets } = require('./airtable');
 const bot = new Slack({ token: functions.config().slack.token });
 
 const NEIGHBORHOOD_TO_CHANNEL = {
-  NW: 'northwest_bedstuy',
-  NE: 'northeast_bedstuy',
-  SW: 'southwest_bedstuy',
-  SE: 'southeast_bedstuy',
-  // "Clinton Hill / Fort Greene": "clintonhill",
-  // "Crown Heights / Brownsville / Flatbush": "crownheights",
+  'NW': 'northwest_bedstuy',
+  'NE': 'northeast_bedstuy',
+  'SW': 'southwest_bedstuy',
+  'SE': 'southeast_bedstuy',
+  'Clinton Hill': 'clintonhill',
+  'Crown Heights': 'crownheights',
+  'Brownsville': 'crownheights',
 };
 
 const CHANNEL_TO_ID = functions.config().slack.channel_to_id;
