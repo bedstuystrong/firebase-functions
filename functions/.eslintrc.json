@@ -17,6 +17,7 @@
     "quote-props": ["warn", "consistent-as-needed"],
     "semi": ["warn", "always"],
     "indent": ["warn", 2],
+    "dot-notation": "warn",
 
     // Removed rule "disallow the use of console" from recommended eslint rules
     "no-console": "off",

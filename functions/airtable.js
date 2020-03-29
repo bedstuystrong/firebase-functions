@@ -11,9 +11,11 @@ const INBOUND_CONTACTS = functions.config().airtable.inbound_contacts_table;
 const INBOUND = functions.config().airtable.inbound_table;
 const INTAKE = functions.config().airtable.intake_table;
 
+const STATUS = 'Status';
+
 const FIELD_NAMES = {
   method: 'Method of Contact',
-  status: 'Status',
+  status: STATUS,
   phoneNumber: 'Phone Number',
   message: 'Message',
   voicemailRecording: 'Voicemail Recording',
@@ -43,8 +45,8 @@ function createMessage(phoneNumber, message) {
   return base(INBOUND).create([
     {
       fields: {
+        [STATUS]: 'Intake Needed',
         [FIELD_NAMES.method]: 'Text Message',
-        [FIELD_NAMES.status]: 'Intake Needed',
         [FIELD_NAMES.phoneNumber]: phoneNumber,
         [FIELD_NAMES.message]: message,
       }
@@ -56,8 +58,8 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
   return base(INBOUND).create([
     {
       fields: {
+        [STATUS]: 'Intake Needed',
         [FIELD_NAMES.method]: 'Phone Call',
-        [FIELD_NAMES.status]: 'Intake Needed',
         [FIELD_NAMES.phoneNumber]: phoneNumber,
         [FIELD_NAMES.message]: message,
         [FIELD_NAMES.voicemailRecording]: recordingUrl,
@@ -77,31 +79,31 @@ async function getAllIntakeTickets() {
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
 async function getChangedIntakeTickets() {
   // Get all tickets with updated statuses
-  const res = (await getAllIntakeTickets()).filter(
+  const allIntakeTickets = await getAllIntakeTickets();
+  const filteredIntakeTickets = allIntakeTickets.filter(
     ([, fields]) => {
       // TODO that "Status" is still missing for some of the tickets in airtable
-      if (!fields['_meta'] && fields['Status']) {
+      if (!fields._meta && fields[STATUS]) {
         return true;
       }
 
-      const meta = JSON.parse(fields['_meta']);
+      const meta = JSON.parse(fields._meta);
 
       // eslint-disable-next-line eqeqeq
-      return fields['Status'] != meta['lastSeenStatus'];
+      return fields[STATUS] != meta.lastSeenStatus;
     }
   );
 
   // For all of these fields, set their `_meta` field
-  const updates = [];
-  for (const [id, fields] of res) {
-    let meta = (fields['_meta']) ? JSON.parse(fields['_meta']) : {};
-    meta['lastSeenStatus'] = fields['Status'] || null;
+  const updates = filteredIntakeTickets.map(([id, fields]) => {
+    let meta = fields._meta ? JSON.parse(fields._meta) : {};
+    meta.lastSeenStatus = fields[STATUS] || null;
 
-    updates.push(base(INTAKE).update(id, { _meta: JSON.stringify(meta) }));
-  }
+    return base(INTAKE).update(id, { _meta: JSON.stringify(meta) });
+  });
   await Promise.all(updates);
 
-  return res;
+  return filteredIntakeTickets;
 }
 
 module.exports = {

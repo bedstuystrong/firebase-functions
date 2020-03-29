@@ -35,7 +35,7 @@ async function onNewIntake(id, fields) {
     text: `HELLO! There is a new ticket: ${fields['Ticket ID']}`,
   });
 
-  if (!res['ok']) {
+  if (!res.ok) {
     console.error(`Encountered an error posting ticket to #${neighborhoodChannelName}: ${id}`);
     return;
   }
@@ -83,4 +83,4 @@ module.exports = {
 
     return null;
   }),
-} 
+};
