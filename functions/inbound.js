@@ -8,7 +8,6 @@ const {
   createVoicemailRecordingPrompt,
 } = require('./twilio');
 const {
-  getPhoneNumberId,
   createMessage,
   createVoicemail,
 } = require('./airtable');
