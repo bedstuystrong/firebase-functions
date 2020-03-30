@@ -18,8 +18,9 @@ const NEIGHBORHOOD_TO_CHANNEL = {
     "NE": "northeast_bedstuy",
     "SW": "southwest_bedstuy",
     "SE": "southeast_bedstuy",
-    "Clinton Hill / Fort Greene": "clintonhill",
-    "Crown Heights / Brownsville / Flatbush": "crownheights",
+    "Clinton Hill": "clintonhill",
+    "Crown Heights": "crownheights",
+    "Brownsville": "crownheights",
 }
 
 const STATUS_TO_EMOJI = {
