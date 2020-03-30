@@ -14,9 +14,8 @@ const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 
 // TODO can we store these easily in config?
-const FIELD_NAMES = {
+const INBOUND_FIELD_NAMES = {
   method: 'Method of Contact',
-  status: 'Status',
   phoneNumber: 'Phone Number',
   message: 'Transcribed Message',
   voicemailRecording: 'Message Recording',
@@ -49,9 +48,9 @@ function createMessage(phoneNumber, message) {
     {
       fields: {
         [STATUS]: 'Intake Needed',
-        [FIELD_NAMES.method]: 'Text Message',
-        [FIELD_NAMES.phoneNumber]: phoneNumber,
-        [FIELD_NAMES.message]: message,
+        [INBOUND_FIELD_NAMES.method]: 'Text Message',
+        [INBOUND_FIELD_NAMES.phoneNumber]: phoneNumber,
+        [INBOUND_FIELD_NAMES.message]: message,
       }
     },
   ]);
@@ -62,10 +61,10 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
     {
       fields: {
         [STATUS]: 'Intake Needed',
-        [FIELD_NAMES.method]: 'Phone Call',
-        [FIELD_NAMES.phoneNumber]: phoneNumber,
-        [FIELD_NAMES.message]: message,
-        [FIELD_NAMES.voicemailRecording]: recordingUrl,
+        [INBOUND_FIELD_NAMES.method]: 'Phone Call',
+        [INBOUND_FIELD_NAMES.phoneNumber]: phoneNumber,
+        [INBOUND_FIELD_NAMES.message]: message,
+        [INBOUND_FIELD_NAMES.voicemailRecording]: recordingUrl,
       }
     },
   ]);
@@ -98,10 +97,11 @@ async function getRecordsWithTicketID(table, ticketID) {
 // NOTE that this function will only work if the table has a `Status` field
 async function getChangedRecords(table) {
   // Get all tickets with updated statuses
-  return (await getAllRecords(table)).filter(
+  const allRecords = await getAllRecords(table);
+  return allRecords.filter(
     ([, fields, meta]) => {
       // NOTE that "Status" is still missing in airtable indicates we should ignore this message
-      if (Object.keys(meta).length === 0 && fields.Status) {
+      if (Object.keys(meta).length === 0 && fields[STATUS]) {
         return true;
       }
 
