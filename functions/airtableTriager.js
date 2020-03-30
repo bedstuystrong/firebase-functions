@@ -18,8 +18,9 @@ const NEIGHBORHOOD_TO_CHANNEL = {
   'NE': 'northeast_bedstuy',
   'SW': 'southwest_bedstuy',
   'SE': 'southeast_bedstuy',
-  'Clinton Hill / Fort Greene': 'clintonhill',
-  'Crown Heights / Brownsville / Flatbush': 'crownheights',
+  'Clinton Hill': 'clintonhill',
+  'Crown Heights': 'crownheights',
+  'Brownsville': 'crownheights',
 };
 
 const STATUS_TO_EMOJI = {
@@ -130,7 +131,7 @@ async function onNewIntake(id, fields, meta) {
     return;
   }
 
-  const neighborhoodChannelName = NEIGHBORHOOD_TO_CHANNEL[fields.Neighborhood];
+  const neighborhoodChannelName = NEIGHBORHOOD_TO_CHANNEL[fields['Neighborhood']];
 
   // e.g. crown heights
   if (!neighborhoodChannelName) {
@@ -154,7 +155,7 @@ async function onNewIntake(id, fields, meta) {
   // TODO : add a link the slack post
   meta.intakePostChan = neighborhoodChannelID;
   meta.intakePostTs = res.ts;
-  // TODO this needs to be functional, not mutating `meta`
+  // TODO this needs to be functional, not mutating `meta`!!!!!!!!!!!
 }
 
 async function onIntakeAssigned(id, fields, meta) {
@@ -165,30 +166,31 @@ async function onIntakeAssigned(id, fields, meta) {
     return;
   }
 
-  let res = await bot.chat.update({
+  const ticketResponse = await bot.chat.update({
     channel: meta.intakePostChan,
     ts: meta.intakePostTs,
     text: await getIntakePostContent(fields),
   });
 
   // TODO : we should retry as we might be getting throttled
-  if (!res.ok) {
-    console.error(`Encountered an error updating ticket ${id}: ${res.error}`);
+  if (!ticketResponse.ok) {
+    console.error(`Encountered an error updating ticket ${id}: ${ticketResponse.error}`);
     return;
   }
 
-  meta.intakePostTs = res.ts;
+  // TODO once again we're mutating meta, return immutable meta instead
+  meta.intakePostTs = ticketResponse.ts;
 
   // TODO : use the delivery volunteer's id
-  res = await bot.chat.postMessage({
+  const deliveryMessageResponse = await bot.chat.postMessage({
     channel: await getVolunteerSlackID(fields['Delivery Volunteer']),
     as_user: true,
     text: await getDeliveryDMContents(fields),
     unfurl_media: false,
   });
 
-  if (!res.ok) {
-    console.error(`Encountered an error sending dm for ticket ${id}: ${res.error}`);
+  if (!deliveryMessageResponse.ok) {
+    console.error(`Encountered an error sending dm for ticket ${id}: ${deliveryMessageResponse.error}`);
     return;
   }
 
@@ -204,15 +206,15 @@ async function onIntakeCompleted(id, fields, meta) {
     return;
   }
 
-  let res = await bot.chat.update({
+  const ticketResponse = await bot.chat.update({
     channel: meta.intakePostChan,
     ts: meta.intakePostTs,
     text: await getIntakePostContent(fields),
   });
 
   // TODO : we should retry as we might be getting throttled
-  if (!res.ok) {
-    console.error(`Encountered an error updating ticket ${id}: ${res.error}`);
+  if (!ticketResponse.ok) {
+    console.error(`Encountered an error updating ticket ${id}: ${ticketResponse.error}`);
     return;
   }
 }
@@ -232,7 +234,7 @@ async function onReimbursementNew(id, fields) {
     // Close the intake ticket
     // NOTE that this will trigger the intake ticket on complete function
     const [intakeID, , intakeMeta] = intakeRecords[0];
-    await updateRecord(INTAKE_TABLE, intakeID, { Status: 'Complete' }, intakeMeta);
+    await updateRecord(INTAKE_TABLE, intakeID, { 'Status': 'Complete' }, intakeMeta);
   }
 
   // TODO: send reimbursement message
@@ -272,29 +274,27 @@ async function pollTable(table, statusToCallbacks) {
   }
 }
 
-// Runs every minute
 module.exports = {
-  poll: {
-    intakeTickets: functions.pubsub.schedule('* * * * *').onRun(async () => {
-      const STATUS_TO_CBS = {
-        'Seeking Volunteer': [onNewIntake],
-        'Assigned / In Progress': [onIntakeAssigned],
-        'Complete': [onIntakeCompleted],
-        'Not Bed-Stuy': [],
-      };
+  // Runs every minute
+  intakes: functions.pubsub.schedule('* * * * *').onRun(async () => {
+    const STATUS_TO_CBS = {
+      'Seeking Volunteer': [onNewIntake],
+      'Assigned / In Progress': [onIntakeAssigned],
+      'Complete': [onIntakeCompleted],
+      'Not Bed-Stuy': [],
+    };
 
-      await pollTable(INTAKE_TABLE, STATUS_TO_CBS);
-      return null;
-    }),
-    reimbursements: functions.pubsub.schedule('* * * * *').onRun(async () => {
-      const STATUS_TO_CBS = {
-        'New': [onReimbursementNew],
-        'In Progress': [],
-        'Complete': [],
-      };
+    await pollTable(INTAKE_TABLE, STATUS_TO_CBS);
+    return null;
+  }),
+  reimbursements: functions.pubsub.schedule('* * * * *').onRun(async () => {
+    const STATUS_TO_CBS = {
+      'New': [onReimbursementNew],
+      'In Progress': [],
+      'Complete': [],
+    };
 
-      await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CBS);
-      return null;
-    }),
-  }
+    await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CBS);
+    return null;
+  }),
 };
