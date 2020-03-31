@@ -135,7 +135,7 @@ async function updateRecord(table, id, delta, meta) {
 
 async function getVolunteerSlackID(volunteerID) {
   const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID);
-  return normalize(rec.fields).slackUserID;
+  return normalize(rec.fields, VOLUNTEER_SCHEMA).slackUserID;
 }
 
 module.exports = {
