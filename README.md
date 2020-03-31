@@ -1,7 +1,12 @@
-# firebase functions
+# automation firebase project
+
+`firebase emulators:start`
 
 to deploy one set of functions:
 `firebase deploy --only functions:[namespace]`
+
+to deploy just the website:
+`firebase deploy --only hosting`
 
 ## config
 
@@ -23,13 +28,31 @@ config structure
     "sid": ""
   },
   "slack": {
-    "token": ""
+    "token": "",
+    "channel_to_id": {}
   }
 }
 ```
 
+## polling functions
 
-## intake functions
+to test scheduled functions, add the following to `functions/index.js` and hit endpoint to trigger functions
+
+```js
+const functions = require('firebase-functions');
+const { PubSub } = require('@google-cloud/pubsub');
+exports.test = functions.https.onRequest(async (_req, res) => {
+  const pubsub = new PubSub();
+  const pubsubPrefix = 'firebase-schedule-poll-';
+
+  await pubsub.topic(`${pubsubPrefix}intakes`).publishJSON({});
+  await pubsub.topic(`${pubsubPrefix}reimbursements`).publishJSON({});
+
+  res.json({ cool: true });
+});
+```
+
+## inbound functions
 
 twilio is weird and makes voicemails into something that requires 3 separate requests https://www.twilio.com/docs/voice/twiml/record (we can replace at least 1 with a static url)
 

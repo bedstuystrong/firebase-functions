@@ -1,6 +1,10 @@
 const functions = require('firebase-functions');
-
 const Slack = require('slack');
+const allSettled = require('promise.allsettled');
+const assign = require('lodash/assign');
+const reduce = require('lodash/reduce');
+
+allSettled.shim();
 
 const {
   getChangedRecords,
@@ -10,12 +14,11 @@ const {
   INTAKE_TABLE,
   REIMBURSEMENTS_TABLE
 } = require('./airtable');
+const { getIntakePostContent, getDeliveryDMContent } = require('./messages');
 
 const bot = new Slack({ token: functions.config().slack.token });
 
-const STATUS = 'Status';
-
-const NEIGHBORHOOD_TO_CHANNEL = {
+const NEIGHBORHOOD_CHANNELS = {
   'NW': 'northwest_bedstuy',
   'NE': 'northeast_bedstuy',
   'SW': 'southwest_bedstuy',
@@ -25,147 +28,71 @@ const NEIGHBORHOOD_TO_CHANNEL = {
   'Brownsville': 'crownheights',
 };
 
-const STATUS_TO_EMOJI = {
-  'Seeking Volunteer': ':exclamation:',
-  'Assigned / In Progress': ':woman-biking:',
-  'Complete': ':white_check_mark:',
-};
+const CHANNEL_IDS = functions.config().slack.channel_to_id;
 
-const CHANNEL_TO_ID = functions.config().slack.channel_to_id;
+// TODO: move slack calls to own file
 
-// TODO : add household size
-async function getIntakePostContent(fields) {
-  const intakeVolunteerslackID = await getVolunteerSlackID(fields['Intake Volunteer - This is you!']);
-
-  // TODO : error handling if volunteer id isn't present
-
-  let content = `<!here> <@${intakeVolunteerslackID}> got a new volunteer request from our neighbor ${fields['Requestor First Name and Last Initial']}
-
-*Status:* ${STATUS_TO_EMOJI[fields[STATUS]]} -> ${fields[STATUS]}\n\n`;
-
-  if (fields[STATUS] !== 'Seeking Volunteer') {
-    // TODO : make sure this is filled out
-    const deliveryVolunteerslackID = await getVolunteerSlackID(fields['Delivery Volunteer']);
-    content += `*Assigned to*: <@${deliveryVolunteerslackID}>\n\n`;
-  }
-
-  content += `*Ticket ID*: ${fields['Ticket ID']}
-*Timeline*: ${fields['Need immediacy']}
-*Need*: ${fields['Need Category']}
-*Cross Streets*: ${fields['Cross Streets']}
-*Description*: ${fields['Task Overview - Posts in Slack']}
-*Language*: ${fields['Language']}
-*Requested*: ${fields['Items / Services Requested - Posts in Slack']}
-
-*Want to volunteer to help ${fields['Requestor First Name and Last Initial']}?* Comment on this thread and our Intake Volunteer <@${intakeVolunteerslackID}> will follow up with more details.
-
-_Reminder: Please don't volunteer for delivery if you have any COVID-19/cold/flu-like symptoms, or have come into contact with someone that's tested positive._
-
-:heart: Thanks for helping keep Bed-Stuy Strong! :muscle:`;
-
-  return content;
-}
-
-async function getDeliveryDMContents(fields) {
-  const intakeVolunteerslackID = await getVolunteerSlackID(fields['Intake Volunteer - This is you!']);
-
-  // TODO : gear the reimbursement flow towards delivery completion
-  // TODO : error handling if volunteer id isn't present
-  // TODO : don't send the volunteer this monstrosity of a message every time they take a delivery
-
-  let content = `<@${intakeVolunteerslackID}> assigned a request to you. Thanks so much for taking care of this delivery!
-
-*Ticket ID*: ${fields['Ticket ID']}
-
-*Neighbor*: ${fields['Requestor First Name and Last Initial']}
-*Address*: ${fields['Address (won\'t post in Slack)']}
-*Phone*: ${fields['Phone Number']}
-*Timeline*: ${fields['Need immediacy']}
-*Language*: ${fields['Language']}
-*FYI Special Conditions*: ${fields['Vulnerability']}
-
-*Need*: ${fields['Need Category']}
-*Description*: ${fields['Task Overview - Posts in Slack']}
-*Household Size*: ${(fields['Household Size']) ? fields['Household Size'] : '?'}
-*Requested*: ${fields['Items / Services Requested - Posts in Slack']}\n`;
-
-  // TODO : this is a suspiciously hacky
-  if (fields['Household Size']) {
-    content += '*Spending guidance:*\n';
-    const householdSize = parseInt(fields['Household Size']);
-
-    if (householdSize <= 2) {
-      content += '- $75/per person (1-2 ppl)\n';
-    } else if (householdSize <= 5) {
-      content += '- $250 for a medium household (3-5 ppl)\n';
-    } else {
-      content += '- $350 for a large household (6+ ppl)\n';
-    }
-
-    // NOTE that we want the next next message to be a bullet only if we have a "Spending Guidance section"
-    content += '- ';
-  }
-
-  content += 'Please try to buy about a week\'s worth of food for the household. It\'s ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.\n';
-
-  content += `
-*When you complete the delivery, please:*
-- Take a photo of the receipt
-- Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this completion form> to let us know that the delivery is completed. If you need reimbursement please fill out the reimbursement section, and you will be reimbursed from our community fund within 24 hours.
-- For guidance on how to do a no-contact delivery, check out our <https://docs.google.com/document/d/1-sXwubRG3yBw2URDYcrSGZSj94tY_Ydk4xxVDmgRFh8/edit?usp=sharing|Delivery Volunteer FAQ guide>.
-
-If you have any questions/problems, please post in <#${CHANNEL_TO_ID.delivery_volunteers}>. Thanks again for volunteering!
-
-_Reminder: Please don't volunteer for delivery if you have any COVID-19/cold/flu-like symptoms, or have come into contact with someone that's tested positive._
-
-:heart: :heart: :heart:`;
-
-  return content;
-}
-
-async function onNewIntake(id, fields, meta) {
-  console.log(`onNewIntake(${id})`);
+async function onIntakeReady(id, fields, meta) {
+  console.log('onIntakeReady', { record: id, ticket: fields.ticketID });
 
   // TODO : handle going back from assigned state
 
   if (meta.intakePostChan || meta.intakePostTs) {
-    console.error(`Already processed ticket: ${id}`);
-    return;
+    console.error('onIntakeReady: Already processed ticket', {
+      ticket: fields.ticketID,
+    });
+    return {};
   }
 
-  const neighborhoodChannelName = NEIGHBORHOOD_TO_CHANNEL[fields['Neighborhood']];
+  const neighborhoodChannelName = NEIGHBORHOOD_CHANNELS[fields.neighborhood];
 
-  // e.g. crown heights
   if (!neighborhoodChannelName) {
-    return;
+    console.error('onIntakeReady: Ticket in unsupported neighborhood', {
+      ticket: fields.ticketID,
+      neighborhood: fields.neighborhood,
+    });
+    return null;
   }
 
-  const neighborhoodChannelID = CHANNEL_TO_ID[neighborhoodChannelName];
+  const neighborhoodChannelID = CHANNEL_IDS[neighborhoodChannelName];
 
-  const res = await bot.chat.postMessage({
+  const response = await bot.chat.postMessage({
     channel: neighborhoodChannelID,
     text: await getIntakePostContent(fields),
     unfurl_media: false,
   });
 
-  // TODO : we should retry as we might be getting throttled
-  if (!res.ok) {
-    console.error(`Encountered an error posting ticket ${id} to #${neighborhoodChannelName}: ${res.error}`);
-    return;
+  if (response.ok) {
+    console.log('onIntakeReady: Slack post created', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeReady: Error posting to Slack', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+      response: response,
+    });
+    return null;
   }
 
   // TODO : add a link the slack post
-  meta.intakePostChan = neighborhoodChannelID;
-  meta.intakePostTs = res.ts;
-  // TODO this needs to be functional, not mutating `meta`!!!!!!!!!!!
+  return {
+    intakePostChan: neighborhoodChannelID,
+    intakePostTs: response.ts
+  };
 }
 
 async function onIntakeAssigned(id, fields, meta) {
-  console.log(`onIntakeAssigned(${id})`);
+  console.log('onIntakeAssigned', { record: id, ticket: fields.ticketID });
 
   if (!meta.intakePostChan || !meta.intakePostTs) {
-    console.error(`This ticket wasn't posted to slack: ${id}`);
-    return;
+    console.error('onIntakeAssigned: Missing Slack post for ticket', {
+      ticket: fields.ticketID,
+    });
+    return null;
   }
 
   const ticketResponse = await bot.chat.update({
@@ -174,38 +101,67 @@ async function onIntakeAssigned(id, fields, meta) {
     text: await getIntakePostContent(fields),
   });
 
-  // TODO : we should retry as we might be getting throttled
-  if (!ticketResponse.ok) {
-    console.error(`Encountered an error updating ticket ${id}: ${ticketResponse.error}`);
-    return;
+  if (ticketResponse.ok) {
+    console.log('onIntakeAssigned: Slack post updated', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeAssigned: Error updating Slack post', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+      response: ticketResponse,
+    });
+    return null;
   }
 
-  // TODO once again we're mutating meta, return immutable meta instead
-  meta.intakePostTs = ticketResponse.ts;
+  const deliveryChannel = await getVolunteerSlackID(fields.deliveryVolunteer);
+  if (!deliveryChannel) {
+    console.error('Missing Delivery Volunteer Slack ID', {
+      ticket: fields.ticketID,
+      volunteer: fields.deliveryVolunteer,
+    });
+    return null;
+  }
 
-  // TODO : use the delivery volunteer's id
   const deliveryMessageResponse = await bot.chat.postMessage({
-    channel: await getVolunteerSlackID(fields['Delivery Volunteer']),
+    channel: deliveryChannel,
     as_user: true,
-    text: await getDeliveryDMContents(fields),
+    text: await getDeliveryDMContent(fields),
     unfurl_media: false,
   });
 
-  if (!deliveryMessageResponse.ok) {
-    console.error(`Encountered an error sending dm for ticket ${id}: ${deliveryMessageResponse.error}`);
-    return;
+  if (deliveryMessageResponse.ok) {
+    console.log('onIntakeAssigned: Delivery DM sent', {
+      channel: deliveryChannel,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeAssigned: Error sending delivery DM', {
+      channel: deliveryChannel,
+      ticket: fields.ticketID,
+      response: deliveryMessageResponse,
+    });
+    return null;
   }
 
   // TODO : post a comment in the thread saying that the delivery has been claimed
+  return {
+    intakePostTs: ticketResponse.ts,
+  };
 }
 
 async function onIntakeCompleted(id, fields, meta) {
-  console.log(`onIntakeCompleted(${id})`);
+  console.log('onIntakeCompleted', { record: id, ticket: fields.ticketID });
 
   // TODO : we could try recovering from this by calling `onNewIntake` manually
   if (!meta.intakePostChan || !meta.intakePostTs) {
-    console.error(`This ticket wasn't posted to slack: ${id}`);
-    return;
+    console.error('onIntakeCompleted: Missing Slack post for ticket', {
+      ticket: fields.ticketID,
+    });
+    return null;
   }
 
   const ticketResponse = await bot.chat.update({
@@ -214,32 +170,55 @@ async function onIntakeCompleted(id, fields, meta) {
     text: await getIntakePostContent(fields),
   });
 
-  // TODO : we should retry as we might be getting throttled
-  if (!ticketResponse.ok) {
-    console.error(`Encountered an error updating ticket ${id}: ${ticketResponse.error}`);
-    return;
+  if (ticketResponse.ok) {
+    console.log('onIntakeCompleted: Slack post updated', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeCompleted: Error updating Slack post', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+      response: ticketResponse,
+    });
+    return null;
   }
+
+  return {};
 }
 
-async function onReimbursementNew(id, fields) {
-  console.log(`onReimbursementNew(${id})`);
+async function onReimbursementCreated(id, fields) {
+  console.log('onReimbursementCreated', { record: id, ticket: fields.ticketID });
 
   // TODO : error handling
-  const intakeRecords = await getRecordsWithTicketID(INTAKE_TABLE, fields['Ticket ID']);
+  const intakeRecords = await getRecordsWithTicketID(INTAKE_TABLE, fields.ticketID);
 
   if (intakeRecords.length > 1) {
-    console.error(`Multiple intake records exist for this ticket id: ${fields['Ticket ID']}`);
+    console.error('onReimbursementCreated: Multiple intake records exist for ticket', {
+      record: id,
+      ticket: fields.ticketID,
+    });
   } else if (intakeRecords.length === 0) {
-    console.error(`No intake records exist for this ticket id: ${fields['Ticket ID']}`);
+    console.error('onReimbursementCreated: No intake records exist for ticket', {
+      record: id,
+      ticket: fields.ticketID,
+    });
   } else {
-    console.log('updating...');
     // Close the intake ticket
     // NOTE that this will trigger the intake ticket on complete function
     const [intakeID, , intakeMeta] = intakeRecords[0];
-    await updateRecord(INTAKE_TABLE, intakeID, { [STATUS]: 'Complete' }, intakeMeta);
+    await updateRecord(INTAKE_TABLE, intakeID, { status: 'Complete' }, intakeMeta);
+
+    console.log('onReimbursementCreated: Completed intake ticket', {
+      ticket: fields.ticketID,
+    });
   }
 
   // TODO: send reimbursement message
+
+  return {};
 }
 
 // Processes all tickets in a table that have a new status
@@ -257,31 +236,32 @@ async function pollTable(table, statusToCallbacks) {
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
   const updates = changedTickets.map(async ([id, fields, meta]) => {
-    console.log(`Processing record: ${id}`);
-
-    const status = fields[STATUS];
-    if (status in statusToCallbacks) {
-      await Promise.all(statusToCallbacks[status].map(async (action) => {
-        return await action(id, fields, meta);
-      }));
-    } else {
-      console.error(`Record has unsupported status: ${status}`);
+    const status = fields.status;
+    if (!(status in statusToCallbacks)) {
+      throw new Error(`Record ${id} has unsupported status: ${status}`);
     }
+
+    const results = await Promise.allSettled(
+      statusToCallbacks[status].map(async (action) => {
+        return await action(id, fields, meta);
+      })
+    );
+    const updatedMeta = assign(meta, reduce(results, assign));
 
     // Once we have processed all callbacks for a ticket, note that we have seen it,
     // and update its meta field
-    meta.lastSeenStatus = fields[STATUS] || null;
-    return await updateRecord(table, id, {}, meta);
+    updatedMeta.lastSeenStatus = fields.status || null;
+    return await updateRecord(table, id, {}, updatedMeta);
   });
 
-  return await Promise.all(updates);
+  return await Promise.allSettled(updates);
 }
 
 module.exports = {
   // Runs every minute
   intakes: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
-      'Seeking Volunteer': [onNewIntake],
+      'Seeking Volunteer': [onIntakeReady],
       'Assigned / In Progress': [onIntakeAssigned],
       'Complete': [onIntakeCompleted],
       'Not Bed-Stuy': [],
@@ -291,7 +271,7 @@ module.exports = {
   }),
   reimbursements: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
-      'New': [onReimbursementNew],
+      'New': [onReimbursementCreated],
       'In Progress': [],
       'Complete': [],
     };

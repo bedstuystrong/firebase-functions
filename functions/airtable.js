@@ -1,6 +1,15 @@
 const functions = require('firebase-functions');
 const Airtable = require('airtable');
 
+const {
+  normalize,
+  denormalize,
+  INBOUND_SCHEMA,
+  INTAKE_SCHEMA,
+  VOLUNTEER_SCHEMA,
+  REIMBURSEMENT_SCHEMA,
+} = require('./schema');
+
 const airtable = new Airtable({
   apiKey: functions.config().airtable.api_key,
 });
@@ -13,15 +22,12 @@ const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 
-// TODO can we store these easily in config?
-const INBOUND_FIELD_NAMES = {
-  method: 'Method of Contact',
-  phoneNumber: 'Phone Number',
-  message: 'Transcribed Message',
-  voicemailRecording: 'Message Recording',
+const TABLE_SCHEMAS = {
+  [INBOUND_TABLE]: INBOUND_SCHEMA,
+  [INTAKE_TABLE]: INTAKE_SCHEMA,
+  [VOLUNTEER_FORM_TABLE]: VOLUNTEER_SCHEMA,
+  [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_SCHEMA,
 };
-
-const STATUS = 'Status';
 
 function getPhoneNumberId(phoneNumber) {
   return base(INBOUND_CONTACTS_TABLE).select({
@@ -44,43 +50,49 @@ function getPhoneNumberId(phoneNumber) {
 }
 
 function createMessage(phoneNumber, message) {
-  return base(INBOUND_TABLE).create([
-    {
-      fields: {
-        [STATUS]: 'Intake Needed',
-        [INBOUND_FIELD_NAMES.method]: 'Text Message',
-        [INBOUND_FIELD_NAMES.phoneNumber]: phoneNumber,
-        [INBOUND_FIELD_NAMES.message]: message,
-      }
-    },
-  ]);
+  const fields = denormalize({
+    status: 'Intake Needed',
+    method: 'Text Message',
+    phoneNumber: phoneNumber,
+    message: message,
+  });
+  return base(INBOUND_TABLE).create([{ fields }]);
 }
 
 function createVoicemail(phoneNumber, recordingUrl, message) {
-  return base(INBOUND_TABLE).create([
-    {
-      fields: {
-        [STATUS]: 'Intake Needed',
-        [INBOUND_FIELD_NAMES.method]: 'Phone Call',
-        [INBOUND_FIELD_NAMES.phoneNumber]: phoneNumber,
-        [INBOUND_FIELD_NAMES.message]: message,
-        [INBOUND_FIELD_NAMES.voicemailRecording]: recordingUrl,
-      }
-    },
-  ]);
+  const fields = denormalize({
+    status: 'Intake Needed',
+    method: 'Phone Call',
+    phoneNumber: phoneNumber,
+    message: message,
+    voicemailRecording: recordingUrl,
+  });
+  return base(INBOUND_TABLE).create([{ fields }]);
 }
 
-function _parseRecord(record) {
+function parseRecord(record) {
   return [
     record.id,
-    record.fields,
-    (record.fields._meta) ? JSON.parse(record.fields._meta) : {}
+    normalize(record.fields),
+    record.fields._meta ? JSON.parse(record.fields._meta) : {}
   ];
+}
+
+function normalizeRecords(table) {
+  const schema = TABLE_SCHEMAS[table];
+  return function normalizeRecord(record) {
+    // TODO make this an object
+    return [
+      record.id,
+      normalize(record.fields, schema),
+      record.fields._meta ? JSON.parse(record.fields._meta) : {}
+    ];
+  };
 }
 
 async function getAllRecords(table) {
   const records = await base(table).select().all();
-  return records.map(_parseRecord);
+  return records.map(normalizeRecords(table));
 }
 
 async function getRecordsWithTicketID(table, ticketID) {
@@ -88,8 +100,7 @@ async function getRecordsWithTicketID(table, ticketID) {
     filterByFormula: `{Ticket ID} = "${ticketID}"`
   });
   const records = await query.all();
-
-  return records.map(_parseRecord);
+  return records.map(parseRecord);
 }
 
 // Returns only intake tickets whose status has changed since we last checked
@@ -101,12 +112,12 @@ async function getChangedRecords(table) {
   return allRecords.filter(
     ([, fields, meta]) => {
       // NOTE that "Status" is still missing in airtable indicates we should ignore this message
-      if (Object.keys(meta).length === 0 && fields[STATUS]) {
+      if (Object.keys(meta).length === 0 && fields.status) {
         return true;
       }
 
       // eslint-disable-next-line eqeqeq
-      return fields[STATUS] != meta.lastSeenStatus;
+      return fields.status != meta.lastSeenStatus;
     }
   );
 }
@@ -119,13 +130,12 @@ async function updateRecord(table, id, delta, meta) {
     fields._meta = JSON.stringify(meta);
   }
 
-  await base(table).update(id, fields);
+  await base(table).update(id, denormalize(fields));
 }
 
 async function getVolunteerSlackID(volunteerID) {
   const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID);
-
-  return rec.fields['Slack User ID'];
+  return normalize(rec.fields).slackUserID;
 }
 
 module.exports = {
