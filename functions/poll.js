@@ -64,14 +64,13 @@ async function onIntakeReady(id, fields, meta) {
 
   if (response.ok) {
     console.log('onIntakeReady: Slack post created', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
+      channel: neighborhoodChannelID,
+      timestamp: response.ts,
       ticket: fields.ticketID,
     });
   } else {
     console.error('onIntakeReady: Error posting to Slack', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
+      channel: neighborhoodChannelID,
       ticket: fields.ticketID,
       response: response,
     });
