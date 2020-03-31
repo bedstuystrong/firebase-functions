@@ -25,7 +25,7 @@ async function getIntakePostContent(fields) {
   }
 
   let content = `
-<!here> <@${intakeVolunteerSlackID}> got a new volunteer request from our neighbor ${fields.requestorName}
+<!here> <@${intakeVolunteerSlackID}> got a new volunteer request from our neighbor ${fields.requestName}
 
 *Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n\n`;
 
@@ -43,7 +43,7 @@ async function getIntakePostContent(fields) {
 *Language*: ${fields.language}
 *Requested*: ${fields.items}
 
-*Want to volunteer to help ${fields.requestorName}?* Comment on this thread and our Intake Volunteer <@${intakeVolunteerSlackID}> will follow up with more details.
+*Want to volunteer to help ${fields.requestName}?* Comment on this thread and our Intake Volunteer <@${intakeVolunteerSlackID}> will follow up with more details.
 
 _${safetyReminder}_
 
@@ -68,7 +68,7 @@ async function getDeliveryDMContent(fields) {
 
 *Ticket ID*: ${fields.ticketID}
 
-*Neighbor*: ${fields.requestorName}
+*Neighbor*: ${fields.requestName}
 *Address*: ${fields.address}
 *Delivery Notes*: ${fields.deliveryNotes}
 *Phone*: ${fields.phoneNUmber}
