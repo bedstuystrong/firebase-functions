@@ -7,20 +7,21 @@ const airtable = new Airtable({
 
 const base = airtable.base(functions.config().airtable.base_id);
 
-const INBOUND_CONTACTS_TABLE = functions.config().airtable.inbound_contacts_table;
+const INBOUND_CONTACTS_TABLE = null; // functions.config().airtable.inbound_contacts_table;
 const INBOUND_TABLE = functions.config().airtable.inbound_table;
-const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table
+const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 
 // TODO can we store these easily in config?
-const FIELD_NAMES = {
+const INBOUND_FIELD_NAMES = {
   method: 'Method of Contact',
-  status: 'Status',
   phoneNumber: 'Phone Number',
   message: 'Transcribed Message',
   voicemailRecording: 'Message Recording',
 };
+
+const STATUS = 'Status';
 
 function getPhoneNumberId(phoneNumber) {
   return base(INBOUND_CONTACTS_TABLE).select({
@@ -39,58 +40,56 @@ function getPhoneNumberId(phoneNumber) {
         }
       ]);
     }
-  }).then(records => records[0].id)
+  }).then(records => records[0].id);
 }
 
 function createMessage(phoneNumber, message) {
   return base(INBOUND_TABLE).create([
     {
       fields: {
-        [FIELD_NAMES.method]: 'Text Message',
-        [FIELD_NAMES.status]: 'Intake Needed',
-        [FIELD_NAMES.phoneNumber]: phoneNumber,
-        [FIELD_NAMES.message]: message,
+        [STATUS]: 'Intake Needed',
+        [INBOUND_FIELD_NAMES.method]: 'Text Message',
+        [INBOUND_FIELD_NAMES.phoneNumber]: phoneNumber,
+        [INBOUND_FIELD_NAMES.message]: message,
       }
     },
-  ])
+  ]);
 }
 
 function createVoicemail(phoneNumber, recordingUrl, message) {
-  base(INBOUND_TABLE).create([
+  return base(INBOUND_TABLE).create([
     {
       fields: {
-        [FIELD_NAMES.method]: 'Phone Call',
-        [FIELD_NAMES.status]: 'Intake Needed',
-        [FIELD_NAMES.phoneNumber]: phoneNumber,
-        [FIELD_NAMES.message]: message,
-        [FIELD_NAMES.voicemailRecording]: recordingUrl,
+        [STATUS]: 'Intake Needed',
+        [INBOUND_FIELD_NAMES.method]: 'Phone Call',
+        [INBOUND_FIELD_NAMES.phoneNumber]: phoneNumber,
+        [INBOUND_FIELD_NAMES.message]: message,
+        [INBOUND_FIELD_NAMES.voicemailRecording]: recordingUrl,
       }
     },
-  ])
+  ]);
 }
 
 function _parseRecord(record) {
   return [
     record.id,
     record.fields,
-    (record.fields["_meta"]) ? JSON.parse(record.fields["_meta"]) : {}
-  ]
+    (record.fields._meta) ? JSON.parse(record.fields._meta) : {}
+  ];
 }
 
 async function getAllRecords(table) {
-  const query = base(table).select()
-  const records = await query.all()
-
-  return records.map(_parseRecord)
+  const records = await base(table).select().all();
+  return records.map(_parseRecord);
 }
 
 async function getRecordsWithTicketID(table, ticketID) {
   const query = base(table).select({
     filterByFormula: `{Ticket ID} = "${ticketID}"`
-  })
-  const records = await query.all()
+  });
+  const records = await query.all();
 
-  return records.map(_parseRecord)
+  return records.map(_parseRecord);
 }
 
 // Returns only intake tickets whose status has changed since we last checked
@@ -98,34 +97,35 @@ async function getRecordsWithTicketID(table, ticketID) {
 // NOTE that this function will only work if the table has a `Status` field
 async function getChangedRecords(table) {
   // Get all tickets with updated statuses
-  return (await getAllRecords(table)).filter(
+  const allRecords = await getAllRecords(table);
+  return allRecords.filter(
     ([, fields, meta]) => {
       // NOTE that "Status" is still missing in airtable indicates we should ignore this message
-      if (Object.keys(meta).length === 0 && fields["Status"]) {
-        return true
+      if (Object.keys(meta).length === 0 && fields[STATUS]) {
+        return true;
       }
 
       // eslint-disable-next-line eqeqeq
-      return fields["Status"] != meta["lastSeenStatus"]
+      return fields[STATUS] != meta.lastSeenStatus;
     }
-  )
+  );
 }
 
 // TODO : return the new record
 async function updateRecord(table, id, delta, meta) {
-  let fields = Object.assign({}, delta)
+  let fields = Object.assign({}, delta);
 
   if (meta) {
-    fields["_meta"] = JSON.stringify(meta)
+    fields._meta = JSON.stringify(meta);
   }
 
-  await base(table).update(id, fields)
+  await base(table).update(id, fields);
 }
 
 async function getVolunteerSlackID(volunteerID) {
-  const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID)
+  const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID);
 
-  return rec.fields["Slack User ID"]
+  return rec.fields['Slack User ID'];
 }
 
 module.exports = {
@@ -141,4 +141,4 @@ module.exports = {
   getRecordsWithTicketID: getRecordsWithTicketID,
   getVolunteerSlackID: getVolunteerSlackID,
   updateRecord: updateRecord,
-}
+};

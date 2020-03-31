@@ -4,13 +4,21 @@
     "ecmaVersion": 2017
   },
   "env": {
-    "node": true
+    "node": true,
+    "es6": true
   },
   "plugins": [
     "promise"
   ],
   "extends": "eslint:recommended",
   "rules": {
+
+    "quotes": ["warn", "single"],
+    "quote-props": ["warn", "consistent-as-needed"],
+    "semi": ["warn", "always"],
+    "indent": ["warn", 2],
+    "dot-notation": "warn",
+
     // Removed rule "disallow the use of console" from recommended eslint rules
     "no-console": "off",
 
@@ -87,8 +95,8 @@
     // Enforce return statements in getters
     "getter-return": 2,
 
-    // Disallow await inside of loops
-    "no-await-in-loop": 0,
+    // Warn on await inside of loops
+    "no-await-in-loop": 1,
 
     // Disallow comparing against -0
     "no-compare-neg-zero": 2,
