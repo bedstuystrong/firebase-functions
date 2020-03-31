@@ -13,6 +13,8 @@ const {
 
 const bot = new Slack({ token: functions.config().slack.token });
 
+const STATUS = 'Status';
+
 const NEIGHBORHOOD_TO_CHANNEL = {
   'NW': 'northwest_bedstuy',
   'NE': 'northeast_bedstuy',
@@ -39,9 +41,9 @@ async function getIntakePostContent(fields) {
 
   let content = `<!here> <@${intakeVolunteerslackID}> got a new volunteer request from our neighbor ${fields['Requestor First Name and Last Initial']}
 
-*Status:* ${STATUS_TO_EMOJI[fields['Status']]} -> ${fields['Status']}\n\n`;
+*Status:* ${STATUS_TO_EMOJI[fields[STATUS]]} -> ${fields[STATUS]}\n\n`;
 
-  if (fields['Status'] !== 'Seeking Volunteer') {
+  if (fields[STATUS] !== 'Seeking Volunteer') {
     // TODO : make sure this is filled out
     const deliveryVolunteerslackID = await getVolunteerSlackID(fields['Delivery Volunteer']);
     content += `*Assigned to*: <@${deliveryVolunteerslackID}>\n\n`;
@@ -234,7 +236,7 @@ async function onReimbursementNew(id, fields) {
     // Close the intake ticket
     // NOTE that this will trigger the intake ticket on complete function
     const [intakeID, , intakeMeta] = intakeRecords[0];
-    await updateRecord(INTAKE_TABLE, intakeID, { 'Status': 'Complete' }, intakeMeta);
+    await updateRecord(INTAKE_TABLE, intakeID, { [STATUS]: 'Complete' }, intakeMeta);
   }
 
   // TODO: send reimbursement message
@@ -257,7 +259,7 @@ async function pollTable(table, statusToCallbacks) {
   const updates = changedTickets.map(async ([id, fields, meta]) => {
     console.log(`Processing record: ${id}`);
 
-    const status = fields['Status'];
+    const status = fields[STATUS];
     if (status in statusToCallbacks) {
       await Promise.all(statusToCallbacks[status].map(async (action) => {
         return await action(id, fields, meta);
@@ -268,7 +270,7 @@ async function pollTable(table, statusToCallbacks) {
 
     // Once we have processed all callbacks for a ticket, note that we have seen it,
     // and update its meta field
-    meta.lastSeenStatus = fields['Status'] || null;
+    meta.lastSeenStatus = fields[STATUS] || null;
     return await updateRecord(table, id, {}, meta);
   });
 
