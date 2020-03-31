@@ -263,7 +263,7 @@ async function pollTable(table, statusToCallbacks) {
         return await action(id, fields, meta);
       }));
     } else {
-      console.error(`Record has invalid status: ${status}`);
+      console.error(`Record has unsupported status: ${status}`);
     }
 
     // Once we have processed all callbacks for a ticket, note that we have seen it,
