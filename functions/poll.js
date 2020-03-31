@@ -277,7 +277,7 @@ async function pollTable(table, statusToCallbacks) {
 
 module.exports = {
   // Runs every minute
-  intakes: functions.pubsub.schedule('* * * * *').onRun(async () => {
+  intakes: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
       'Seeking Volunteer': [onNewIntake],
       'Assigned / In Progress': [onIntakeAssigned],
@@ -288,7 +288,7 @@ module.exports = {
     await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);
     return null;
   }),
-  reimbursements: functions.pubsub.schedule('* * * * *').onRun(async () => {
+  reimbursements: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
       'New': [onReimbursementNew],
       'In Progress': [],
