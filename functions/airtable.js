@@ -7,7 +7,7 @@ const airtable = new Airtable({
 
 const base = airtable.base(functions.config().airtable.base_id);
 
-const INBOUND_CONTACTS_TABLE = functions.config().airtable.inbound_contacts_table;
+const INBOUND_CONTACTS_TABLE = null; // functions.config().airtable.inbound_contacts_table;
 const INBOUND_TABLE = functions.config().airtable.inbound_table;
 const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
