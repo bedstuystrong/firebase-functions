@@ -259,9 +259,8 @@ async function pollTable(table, statusToCallbacks) {
 
     const status = fields.Status;
     if (status in statusToCallbacks) {
-      for (const cb of statusToCallbacks[status]) {
-        // eslint-disable-next-line callback-return
-        await cb(id, fields, meta);
+      for (const action of statusToCallbacks[status]) {
+        await action(id, fields, meta);
       }
     } else {
       console.error(`Record has invalid status: ${status}`);
@@ -277,24 +276,24 @@ async function pollTable(table, statusToCallbacks) {
 module.exports = {
   // Runs every minute
   intakes: functions.pubsub.schedule('* * * * *').onRun(async () => {
-    const STATUS_TO_CBS = {
+    const STATUS_TO_CALLBACKS = {
       'Seeking Volunteer': [onNewIntake],
       'Assigned / In Progress': [onIntakeAssigned],
       'Complete': [onIntakeCompleted],
       'Not Bed-Stuy': [],
     };
 
-    await pollTable(INTAKE_TABLE, STATUS_TO_CBS);
+    await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);
     return null;
   }),
   reimbursements: functions.pubsub.schedule('* * * * *').onRun(async () => {
-    const STATUS_TO_CBS = {
+    const STATUS_TO_CALLBACKS = {
       'New': [onReimbursementNew],
       'In Progress': [],
       'Complete': [],
     };
 
-    await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CBS);
+    await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
     return null;
   }),
 };
