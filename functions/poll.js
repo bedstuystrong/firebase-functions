@@ -39,9 +39,9 @@ async function getIntakePostContent(fields) {
 
   let content = `<!here> <@${intakeVolunteerslackID}> got a new volunteer request from our neighbor ${fields['Requestor First Name and Last Initial']}
 
-*Status:* ${STATUS_TO_EMOJI[fields.Status]} -> ${fields.Status}\n\n`;
+*Status:* ${STATUS_TO_EMOJI[fields['Status']]} -> ${fields['Status']}\n\n`;
 
-  if (fields.Status !== 'Seeking Volunteer') {
+  if (fields['Status'] !== 'Seeking Volunteer') {
     // TODO : make sure this is filled out
     const deliveryVolunteerslackID = await getVolunteerSlackID(fields['Delivery Volunteer']);
     content += `*Assigned to*: <@${deliveryVolunteerslackID}>\n\n`;
@@ -52,7 +52,7 @@ async function getIntakePostContent(fields) {
 *Need*: ${fields['Need Category']}
 *Cross Streets*: ${fields['Cross Streets']}
 *Description*: ${fields['Task Overview - Posts in Slack']}
-*Language*: ${fields.Language}
+*Language*: ${fields['Language']}
 *Requested*: ${fields['Items / Services Requested - Posts in Slack']}
 
 *Want to volunteer to help ${fields['Requestor First Name and Last Initial']}?* Comment on this thread and our Intake Volunteer <@${intakeVolunteerslackID}> will follow up with more details.
@@ -79,8 +79,8 @@ async function getDeliveryDMContents(fields) {
 *Address*: ${fields['Address (won\'t post in Slack)']}
 *Phone*: ${fields['Phone Number']}
 *Timeline*: ${fields['Need immediacy']}
-*Language*: ${fields.Language}
-*FYI Special Conditions*: ${fields.Vulnerability}
+*Language*: ${fields['Language']}
+*FYI Special Conditions*: ${fields['Vulnerability']}
 
 *Need*: ${fields['Need Category']}
 *Description*: ${fields['Task Overview - Posts in Slack']}
@@ -245,7 +245,7 @@ async function pollTable(table, statusToCallbacks) {
   const changedTickets = await getChangedRecords(table);
 
   if (changedTickets.length === 0) {
-    return;
+    return Promise.resolve();
   }
 
   // TODO : it is possible for us to miss a step in the intake ticket state transitions.
@@ -254,23 +254,25 @@ async function pollTable(table, statusToCallbacks) {
   // where we could miss the intermediate state (i.e. assigned).
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-  for (const [id, fields, meta] of changedTickets) {
+  const updates = changedTickets.map(async ([id, fields, meta]) => {
     console.log(`Processing record: ${id}`);
 
-    const status = fields.Status;
+    const status = fields['Status'];
     if (status in statusToCallbacks) {
-      for (const action of statusToCallbacks[status]) {
-        await action(id, fields, meta);
-      }
+      await Promise.all(statusToCallbacks[status].map(async (action) => {
+        return await action(id, fields, meta);
+      }));
     } else {
       console.error(`Record has invalid status: ${status}`);
     }
 
     // Once we have processed all callbacks for a ticket, note that we have seen it,
     // and update its meta field
-    meta.lastSeenStatus = fields.Status || null;
-    await updateRecord(table, id, {}, meta);
-  }
+    meta.lastSeenStatus = fields['Status'] || null;
+    return await updateRecord(table, id, {}, meta);
+  });
+
+  return await Promise.all(updates);
 }
 
 module.exports = {
