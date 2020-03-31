@@ -287,8 +287,7 @@ module.exports = {
       'Not Bed-Stuy': [],
     };
 
-    await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);
-    return null;
+    return await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);
   }),
   reimbursements: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
@@ -297,7 +296,6 @@ module.exports = {
       'Complete': [],
     };
 
-    await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
-    return null;
+    return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
 };
