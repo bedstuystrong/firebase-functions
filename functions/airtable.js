@@ -100,7 +100,7 @@ async function getRecordsWithTicketID(table, ticketID) {
     filterByFormula: `{Ticket ID} = "${ticketID}"`
   });
   const records = await query.all();
-  return records.map(parseRecord);
+  return records.map(normalizeRecords(table));
 }
 
 // Returns only intake tickets whose status has changed since we last checked
