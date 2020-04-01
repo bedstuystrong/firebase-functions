@@ -71,7 +71,7 @@ async function getDeliveryDMContent(fields) {
 *Neighbor*: ${fields.requestName}
 *Address*: ${fields.address}
 *Delivery Notes*: ${fields.deliveryNotes}
-*Phone*: ${fields.phoneNUmber}
+*Phone*: ${fields.phoneNumber}
 *Timeline*: ${fields.timeline}
 *Language*: ${fields.language}
 *Special Conditions*: ${fields.vulnerability}
