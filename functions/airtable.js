@@ -124,13 +124,13 @@ async function getChangedRecords(table) {
 
 // TODO : return the new record
 async function updateRecord(table, id, delta, meta) {
-  let fields = Object.assign({}, delta);
+  let fields = denormalize(delta, TABLE_SCHEMAS[table]);
 
   if (meta) {
     fields._meta = JSON.stringify(meta);
   }
 
-  await base(table).update(id, denormalize(fields));
+  return await base(table).update(id, fields);
 }
 
 async function getVolunteerSlackID(volunteerID) {

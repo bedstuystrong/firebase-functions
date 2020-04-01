@@ -1,8 +1,7 @@
 const functions = require('firebase-functions');
 const Slack = require('slack');
 const allSettled = require('promise.allsettled');
-const assign = require('lodash/assign');
-const reduce = require('lodash/reduce');
+const _ = require('lodash');
 
 allSettled.shim();
 
@@ -245,11 +244,18 @@ async function pollTable(table, statusToCallbacks) {
         return await action(id, fields, meta);
       })
     );
-    const updatedMeta = assign(meta, reduce(results, assign));
+    if (_.some(results, ['status', 'rejected'])) {
+      console.warning('Actions failed for ticket', {
+        ticket: fields.ticketID,
+      });
+      return null;
+    }
 
     // Once we have processed all callbacks for a ticket, note that we have seen it,
     // and update its meta field
+    const updatedMeta = _.assign(meta, _.reduce(_.map(results, 'value'), _.assign));
     updatedMeta.lastSeenStatus = fields.status || null;
+    console.log('updatedMeta', updatedMeta)
     return await updateRecord(table, id, {}, updatedMeta);
   });
 
