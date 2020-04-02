@@ -37,9 +37,10 @@ async function getIntakePostContent(fields) {
     } else {
       content += ':question:';
     }
-
-    content += '\n\n';
   }
+
+  // Divides the status form the other info
+  content += '\n'
 
   content += `
 *Ticket ID*: ${fields.ticketID}
@@ -84,7 +85,7 @@ async function getDeliveryDMContent(fields) {
 
 *Neighbor*: ${fields.requestName}
 *Address*: ${fields.address}
-*Delivery Notes*: ${fields.deliveryNotes}
+*Delivery Notes*: ${fields.deliveryNotes || '_empty_'}
 *Phone*: ${fields.phoneNumber}
 *Timeline*: ${fields.timeline}
 *Language*: ${fields.language}
