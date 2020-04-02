@@ -57,7 +57,7 @@ function createMessage(phoneNumber, message) {
     method: 'Text Message',
     phoneNumber: phoneNumber,
     message: message,
-  });
+  }, INBOUND_SCHEMA);
   return base(INBOUND_TABLE).create([{ fields }]);
 }
 
@@ -68,7 +68,7 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
     phoneNumber: phoneNumber,
     message: message,
     voicemailRecording: recordingUrl,
-  });
+  }, INBOUND_SCHEMA);
   return base(INBOUND_TABLE).create([{ fields }]);
 }
 
