@@ -13,7 +13,7 @@ const {
   INTAKE_TABLE,
   REIMBURSEMENTS_TABLE
 } = require('./airtable');
-const { getIntakePostContent, getDeliveryDMContent } = require('./messages');
+const { getIntakePostContent, getIntakePostDetails, getDeliveryDMContent } = require('./messages');
 
 const bot = new Slack({ token: functions.config().slack.token });
 
@@ -55,23 +55,44 @@ async function onIntakeReady(id, fields, meta) {
 
   const neighborhoodChannelID = CHANNEL_IDS[neighborhoodChannelName];
 
-  const response = await bot.chat.postMessage({
+  const postResponse = await bot.chat.postMessage({
     channel: neighborhoodChannelID,
     text: await getIntakePostContent(fields),
     unfurl_media: false,
   });
 
-  if (response.ok) {
+  if (postResponse.ok) {
     console.log('onIntakeReady: Slack post created', {
       channel: neighborhoodChannelID,
-      timestamp: response.ts,
+      timestamp: postResponse.ts,
       ticket: fields.ticketID,
     });
   } else {
     console.error('onIntakeReady: Error posting to Slack', {
       channel: neighborhoodChannelID,
       ticket: fields.ticketID,
-      response: response,
+      response: postResponse,
+    });
+    return null;
+  }
+
+  const detailsResponse = await bot.chat.postMessage({
+    channel: neighborhoodChannelID,
+    text: await getIntakePostDetails(fields),
+    thread_ts: postResponse.ts
+  });
+
+  if (detailsResponse.ok) {
+    console.log('onIntakeReady: Slack details posted to thread', {
+      channel: neighborhoodChannelID,
+      timestamp: detailsResponse.ts,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeReady: Error posting details to Slack thread', {
+      channel: neighborhoodChannelID,
+      ticket: fields.ticketID,
+      response: detailsResponse,
     });
     return null;
   }
@@ -79,7 +100,7 @@ async function onIntakeReady(id, fields, meta) {
   // TODO : add a link the slack post
   return {
     intakePostChan: neighborhoodChannelID,
-    intakePostTs: response.ts
+    intakePostTs: postResponse.ts
   };
 }
 
@@ -262,7 +283,7 @@ async function pollTable(table, statusToCallbacks) {
     // and update its meta field
     const updatedMeta = _.assign(meta, _.reduce(_.map(results, 'value'), _.assign));
     updatedMeta.lastSeenStatus = fields.status || null;
-    console.log('updatedMeta', updatedMeta)
+    console.log('updatedMeta', updatedMeta);
     return await updateRecord(table, id, {}, updatedMeta);
   });
 

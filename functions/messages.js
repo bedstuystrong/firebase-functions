@@ -24,33 +24,47 @@ async function getIntakePostContent(fields) {
     });
   }
 
-  let content = `
-<!here> <@${intakeVolunteerSlackID}> got a new volunteer request from our neighbor ${fields.requestName}
+  let content = `<@${intakeVolunteerSlackID}> got a new volunteer request from our neighbor ${fields.requestName}
 
-*Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n\n`;
+*Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n`;
 
   if (fields.status !== 'Seeking Volunteer') {
+    content += '*Assigned to*: ';
+
     const deliveryVolunteerslackID = await getVolunteerSlackID(fields.deliveryVolunteer);
-    content += `*Assigned to*: <@${deliveryVolunteerslackID}>\n\n`;
+    if (deliveryVolunteerslackID) {
+      content += `<@${deliveryVolunteerslackID}>`;
+    } else {
+      content += ':question:';
+    }
+
+    content += '\n\n';
   }
 
   content += `
 *Ticket ID*: ${fields.ticketID}
 *Timeline*: ${fields.timeline}
-*Need*: ${fields.category}
 *Cross Streets*: ${fields.crossStreets}
-*Description*: ${fields.description}
-*Language*: ${fields.language}
-*Requested*: ${fields.items}
+*Need*: ${fields.category}
+*Household Size*: ${fields.householdSize || ':question:'}
 
-*Want to volunteer to help ${fields.requestName}?* Comment on this thread and our Intake Volunteer <@${intakeVolunteerSlackID}> will follow up with more details.
-
-_${safetyReminder}_
-
-:heart: Thanks for helping keep Bed-Stuy Strong! :muscle:
+*Want to help ${fields.requestName}?* Comment on this thread and an intake volunteer will follow up with more details. :point_down:
 `;
 
   return content;
+}
+
+
+/**
+ * Get details to post in intake post's thread
+ */
+async function getIntakePostDetails(fields) {
+  return `
+*Description*: ${fields.description}
+*Language*: ${fields.language}
+
+*Requested*: ${fields.items}
+`;
 }
 
 /**
@@ -118,4 +132,5 @@ _${safetyReminder}_
 module.exports = {
   getIntakePostContent,
   getDeliveryDMContent,
+  getIntakePostDetails,
 };
