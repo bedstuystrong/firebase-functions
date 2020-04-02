@@ -10,6 +10,8 @@ const {
   REIMBURSEMENT_SCHEMA,
 } = require('./schema');
 
+const IS_PROD = functions.config().environment.type === 'prod'
+
 const airtable = new Airtable({
   apiKey: functions.config().airtable.api_key,
 });
@@ -134,6 +136,11 @@ async function updateRecord(table, id, delta, meta) {
 }
 
 async function getVolunteerSlackID(volunteerID) {
+  // Ensures that all DMs go to the test user
+  if (!IS_PROD) {
+    return functions.config().slack.test_user_id;
+  }
+
   const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID);
   return normalize(rec.fields, VOLUNTEER_SCHEMA).slackUserID;
 }

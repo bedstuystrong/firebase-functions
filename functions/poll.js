@@ -234,6 +234,11 @@ async function pollTable(table, statusToCallbacks) {
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
   const updates = changedTickets.map(async ([id, fields, meta]) => {
+    // NOTE that this is a mechanism to easily allow us to ignore tickets in airtable
+    if (meta.ignore) {
+      return null;
+    }
+
     const status = fields.status;
     if (!(status in statusToCallbacks)) {
       throw new Error(`Record ${id} has unsupported status: ${status}`);
@@ -244,9 +249,11 @@ async function pollTable(table, statusToCallbacks) {
         return await action(id, fields, meta);
       })
     );
+
     if (_.some(results, ['status', 'rejected'])) {
-      console.warning('Actions failed for ticket', {
+      console.error('Actions failed for ticket', {
         ticket: fields.ticketID,
+        reasons: _.map(_.filter(results, ['status', 'rejected']), 'reason'),
       });
       return null;
     }

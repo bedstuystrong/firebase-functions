@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "bedstuystrong-automation"
+    "default": "bedstuystrong-automation",
+    "test": "bedstuystrong-automation-a4b75"
   }
 }
