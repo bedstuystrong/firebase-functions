@@ -420,9 +420,7 @@ module.exports = {
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
   // Scheduled for 7am and 5pm
-  // TODO
-  // sendDigest: functions.pubsub.schedule('0 7/17 * * *').timeZone('America/New_York').onRun(async () => {
-  sendDigest: functions.pubsub.schedule('* * * * *').timeZone('America/New_York').onRun(async () => {
+  sendDigest: functions.pubsub.schedule('0 7/17 * * *').timeZone('America/New_York').onRun(async () => {
     try {
       await sendDigest();
       console.log('sendDigest: successfully sent digest');
