@@ -60,24 +60,23 @@ async function onIntakeReady(id, fields, meta) {
     return null;
   }
 
-  const neighborhoodChannelID = CHANNEL_IDS[neighborhoodChannelName];
-
   // Do the main post
   const postResponse = await bot.chat.postMessage({
-    channel: neighborhoodChannelID,
+    channel: CHANNEL_IDS.tickets,
     text: await getIntakePostContent(fields),
     unfurl_media: false,
+    unfurl_links: false,
   });
 
   if (postResponse.ok) {
     console.log('onIntakeReady: Slack post created', {
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       timestamp: postResponse.ts,
       ticket: fields.ticketID,
     });
   } else {
     console.error('onIntakeReady: Error posting to Slack', {
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       ticket: fields.ticketID,
       response: postResponse,
     });
@@ -86,20 +85,20 @@ async function onIntakeReady(id, fields, meta) {
 
   // Add a post to the thread with details
   const detailsResponse = await bot.chat.postMessage({
-    channel: neighborhoodChannelID,
+    channel: CHANNEL_IDS.tickets,
     text: await getIntakePostDetails(fields),
     thread_ts: postResponse.ts
   });
 
   if (detailsResponse.ok) {
     console.log('onIntakeReady: Slack details posted to thread', {
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       timestamp: detailsResponse.ts,
       ticket: fields.ticketID,
     });
   } else {
     console.error('onIntakeReady: Error posting details to Slack thread', {
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       ticket: fields.ticketID,
       response: detailsResponse,
     });
@@ -108,14 +107,14 @@ async function onIntakeReady(id, fields, meta) {
 
   // Get a link to the post
   const postLinkResponse = await bot.chat.getPermalink({
-    channel: neighborhoodChannelID,
+    channel: CHANNEL_IDS.tickets,
     message_ts: postResponse.ts
   });
 
   if (postLinkResponse.ok) {
     console.log('onIntakeReady: Populated slack post link', {
       ticket: fields.ticketID,
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       link: postLinkResponse.permalink
     });
 
@@ -124,7 +123,7 @@ async function onIntakeReady(id, fields, meta) {
     });
   } else {
     console.error('onIntakeReady: Error getting link to slack post', {
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       ticket: fields.ticketID,
       response: postLinkResponse,
     });
@@ -133,19 +132,19 @@ async function onIntakeReady(id, fields, meta) {
 
   // Get a link to the details post
   const detailsLinkResponse = await bot.chat.getPermalink({
-    channel: neighborhoodChannelID,
+    channel: CHANNEL_IDS.tickets,
     message_ts: detailsResponse.ts,
   });
 
   if (detailsLinkResponse.ok) {
     console.log('onIntakeReady: Populated slack details link', {
       ticket: fields.ticketID,
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       link: detailsLinkResponse.permalink
     });
   } else {
     console.error('onIntakeReady: Error getting link to slack details', {
-      channel: neighborhoodChannelID,
+      channel: CHANNEL_IDS.tickets,
       ticket: fields.ticketID,
       response: detailsLinkResponse,
     });
@@ -153,6 +152,7 @@ async function onIntakeReady(id, fields, meta) {
   }
 
   // Populate the slack link in the record
+  // NOTE that these are the fields from the updated record
   await updateRecord(
     INTAKE_TABLE,
     id,
@@ -163,8 +163,10 @@ async function onIntakeReady(id, fields, meta) {
     meta
   );
 
+  // TODO : the post to #delivery_volunteers if it is urgent
+
   return {
-    intakePostChan: neighborhoodChannelID,
+    intakePostChan: CHANNEL_IDS.tickets,
     intakePostTs: postResponse.ts,
   };
 }
@@ -215,6 +217,7 @@ async function onIntakeAssigned(id, fields, meta) {
     as_user: true,
     text: await getDeliveryDMContent(fields),
     unfurl_media: false,
+    unfurl_links: false,
   });
 
   if (deliveryMessageResponse.ok) {
@@ -417,7 +420,9 @@ module.exports = {
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
   // Scheduled for 7am and 5pm
-  sendDigest: functions.pubsub.schedule('0 7/17 * * *').timeZone('America/New_York').onRun(async () => {
+  // TODO
+  // sendDigest: functions.pubsub.schedule('0 7/17 * * *').timeZone('America/New_York').onRun(async () => {
+  sendDigest: functions.pubsub.schedule('* * * * *').timeZone('America/New_York').onRun(async () => {
     try {
       await sendDigest();
       console.log('sendDigest: successfully sent digest');

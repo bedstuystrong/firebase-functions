@@ -132,7 +132,6 @@ async function getChangedRecords(table) {
   );
 }
 
-// TODO : return the new record
 async function updateRecord(table, id, delta, meta) {
   let fields = denormalize(delta, TABLE_SCHEMAS[table]);
 
@@ -140,7 +139,7 @@ async function updateRecord(table, id, delta, meta) {
     fields._meta = JSON.stringify(meta);
   }
 
-  return await base(table).update(id, fields);
+  return normalizeRecords(table)(await base(table).update(id, fields));
 }
 
 async function getVolunteerSlackID(volunteerID) {

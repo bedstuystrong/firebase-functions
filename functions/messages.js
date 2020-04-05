@@ -84,9 +84,17 @@ async function getDeliveryDMContent(fields) {
   let content = `
 <@${intakeVolunteerslackID}> assigned a request to you. Thanks so much for taking care of this delivery!
 
-*Ticket ID*: ${fields.ticketID}
+*Ticket ID*: ${fields.ticketID}`;
 
-*Neighbor*: ${fields.requestName}
+  // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
+  // tickets, and backfilling them ended up being too much work
+  const linkToTicket = fields.slackPostThreadLink || fields.slackPostLink;
+  if (linkToTicket) {
+    content += ` (<${linkToTicket}|_link to post_>)`;
+  }
+  content += '\n\n';
+
+  content += `*Neighbor*: ${fields.requestName}
 *Address*: ${fields.address}
 *Delivery Notes*: ${fields.deliveryNotes || '_empty_'}
 *Phone*: ${fields.phoneNumber}
@@ -147,11 +155,11 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
   const idToDueDate = _.zipObject(
     _.map(
       tickets,
-      ([id,,]) => id,
+      ([id, ,]) => id,
     ),
     _.map(
       tickets,
-      ([,fields,]) => getTicketDueDate(fields),
+      ([, fields,]) => getTicketDueDate(fields),
     ),
   );
 
@@ -171,10 +179,10 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
 
   const ticketIDsToInclude = _.slice(
     _.map(
-      sortedTickets, 
-      ([id,,]) => id,
+      sortedTickets,
+      ([id, ,]) => id,
     ),
-    0, 
+    0,
     maxNumTickets,
   );
 
@@ -182,7 +190,7 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
   for (const neighborhood in neighborhoodToTickets) {
     const neighborhoodTickets = neighborhoodToTickets[neighborhood];
     // NOTE that we only display tickets that are in the `maxNumSelected` truncated set
-    const filteredNeighborhoodTickets = _.filter(neighborhoodTickets, ([id,,]) => _.includes(ticketIDsToInclude, id));
+    const filteredNeighborhoodTickets = _.filter(neighborhoodTickets, ([id, ,]) => _.includes(ticketIDsToInclude, id));
 
     if (filteredNeighborhoodTickets.length === 0) {
       continue;
