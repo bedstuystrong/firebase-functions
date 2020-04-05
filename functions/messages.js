@@ -1,5 +1,8 @@
 const functions = require('firebase-functions');
-const { getVolunteerSlackID } = require('./airtable');
+
+const _ = require('lodash');
+
+const { getTicketDueDate, getVolunteerSlackID } = require('./airtable');
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
@@ -40,7 +43,7 @@ async function getIntakePostContent(fields) {
   }
 
   // Divides the status form the other info
-  content += '\n'
+  content += '\n';
 
   content += `
 *Ticket ID*: ${fields.ticketID}
@@ -109,7 +112,7 @@ async function getDeliveryDMContent(fields) {
       content += '- $350 for a large household (6+ ppl)\n';
     }
 
-    // NOTE that we want the next next message to be a bullet only if we have a "Spending Guidance section"
+    // NOTE that we want the next next message to be a bullet only if we have a 'Spending Guidance section'
     content += '- ';
   }
 
@@ -130,8 +133,127 @@ _${safetyReminder}_
   return content;
 }
 
+async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 15) {
+  let blocks = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Delivery Request Summary*\n\n:warning: _Overdue!_, :fire: _Due Today_, :turtle: _< ${minDueDate} Days Left_`,
+      }
+    },
+  ];
+
+  const idToDueDate = _.zipObject(
+    _.map(
+      tickets,
+      ([id,,]) => id,
+    ),
+    _.map(
+      tickets,
+      ([,fields,]) => getTicketDueDate(fields),
+    ),
+  );
+
+  // Tickets sorted by due date
+  const sortedTickets = _.sortBy(
+    _.filter(
+      tickets,
+      ([id, ,]) => idToDueDate[id] <= minDueDate,
+    ),
+    ([id, ,]) => idToDueDate[id],
+  );
+
+  const neighborhoodToTickets = _.groupBy(
+    sortedTickets,
+    ([, fields,]) => fields.neighborhood,
+  );
+
+  const ticketIDsToInclude = _.slice(
+    _.map(
+      sortedTickets, 
+      ([id,,]) => id,
+    ),
+    0, 
+    maxNumTickets,
+  );
+
+  // Generate summaries for all neighborhoods
+  for (const neighborhood in neighborhoodToTickets) {
+    const neighborhoodTickets = neighborhoodToTickets[neighborhood];
+    // NOTE that we only display tickets that are in the `maxNumSelected` truncated set
+    const filteredNeighborhoodTickets = _.filter(neighborhoodTickets, ([id,,]) => _.includes(ticketIDsToInclude, id));
+
+    if (filteredNeighborhoodTickets.length === 0) {
+      continue;
+    }
+
+    blocks.push(
+      {
+        type: 'divider',
+      }
+    );
+
+    blocks.push(
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*${neighborhood}* _(${neighborhoodToTickets[neighborhood].length} Unassigned)_`,
+        }
+      }
+    );
+
+    // NOTE that we only display tickets that are in the `maxNumSelected` truncated set
+    for (const [id, fields,] of filteredNeighborhoodTickets) {
+      const dueDate = idToDueDate[id];
+
+      let urgencyEmoji;
+      if (dueDate < 0) {
+        urgencyEmoji = ':warning:';
+      } else if (dueDate < 1) {
+        urgencyEmoji = ':fire:';
+      } else {
+        urgencyEmoji = ':turtle:';
+      }
+
+      let ticketContent = `${urgencyEmoji} *${fields.ticketID}* (${fields.crossStreets}) [household of ${fields.householdSize}]`;
+
+      // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
+      // tickets, and backfilling them ended up being too much work
+      const link = fields.slackPostThreadLink || fields.slackPostLink;
+      if (link) {
+        ticketContent += `: <${link}|_link to post_>`;
+      }
+
+      blocks.push(
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: ticketContent
+          }
+        }
+      );
+    }
+  }
+
+  blocks.push(
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `If you would like to claim one of these deliveries, please comment on the ticket thread by following the _link to post_, or reach out in <#${CHANNEL_IDS.delivery_volunteers}>`
+      }
+    }
+  );
+
+  return blocks;
+}
+
 module.exports = {
-  getIntakePostContent,
   getDeliveryDMContent,
+  getIntakePostContent,
   getIntakePostDetails,
+  getTicketSummaryBlocks,
 };

@@ -31,6 +31,9 @@ const INTAKE_SCHEMA = {
   vulnerability: 'Vulnerability',
   householdSize: 'Household Size',
   deliveryNotes: 'Notes for Delivery Volunteer (won\'t post in Slack)',
+  dateCreated: 'Date Created',
+  slackPostLink: 'Slack Post Link',
+  slackPostThreadLink: 'Slack Post Thread Link',
 };
 
 const REIMBURSEMENT_SCHEMA = {

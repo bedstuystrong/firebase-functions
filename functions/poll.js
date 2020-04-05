@@ -7,13 +7,20 @@ allSettled.shim();
 
 const {
   getChangedRecords,
-  updateRecord,
-  getVolunteerSlackID,
+  getRecordsWithStatus,
   getRecordsWithTicketID,
+  getVolunteerSlackID,
+  updateRecord,
   INTAKE_TABLE,
   REIMBURSEMENTS_TABLE
 } = require('./airtable');
-const { getIntakePostContent, getIntakePostDetails, getDeliveryDMContent } = require('./messages');
+
+const {
+  getIntakePostContent,
+  getIntakePostDetails,
+  getDeliveryDMContent,
+  getTicketSummaryBlocks,
+} = require('./messages');
 
 const bot = new Slack({ token: functions.config().slack.token });
 
@@ -29,7 +36,7 @@ const NEIGHBORHOOD_CHANNELS = {
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 
-// TODO: move slack calls to own file
+// TODO : move slack calls to own file
 
 async function onIntakeReady(id, fields, meta) {
   console.log('onIntakeReady', { record: id, ticket: fields.ticketID });
@@ -55,6 +62,7 @@ async function onIntakeReady(id, fields, meta) {
 
   const neighborhoodChannelID = CHANNEL_IDS[neighborhoodChannelName];
 
+  // Do the main post
   const postResponse = await bot.chat.postMessage({
     channel: neighborhoodChannelID,
     text: await getIntakePostContent(fields),
@@ -76,6 +84,7 @@ async function onIntakeReady(id, fields, meta) {
     return null;
   }
 
+  // Add a post to the thread with details
   const detailsResponse = await bot.chat.postMessage({
     channel: neighborhoodChannelID,
     text: await getIntakePostDetails(fields),
@@ -97,10 +106,66 @@ async function onIntakeReady(id, fields, meta) {
     return null;
   }
 
-  // TODO : add a link the slack post
+  // Get a link to the post
+  const postLinkResponse = await bot.chat.getPermalink({
+    channel: neighborhoodChannelID,
+    message_ts: postResponse.ts
+  });
+
+  if (postLinkResponse.ok) {
+    console.log('onIntakeReady: Populated slack post link', {
+      ticket: fields.ticketID,
+      channel: neighborhoodChannelID,
+      link: postLinkResponse.permalink
+    });
+
+    console.log('onReimbursementCreated: Completed intake ticket', {
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeReady: Error getting link to slack post', {
+      channel: neighborhoodChannelID,
+      ticket: fields.ticketID,
+      response: postLinkResponse,
+    });
+    return null;
+  }
+
+  // Get a link to the details post
+  const detailsLinkResponse = await bot.chat.getPermalink({
+    channel: neighborhoodChannelID,
+    message_ts: detailsResponse.ts,
+  });
+
+  if (detailsLinkResponse.ok) {
+    console.log('onIntakeReady: Populated slack details link', {
+      ticket: fields.ticketID,
+      channel: neighborhoodChannelID,
+      link: detailsLinkResponse.permalink
+    });
+  } else {
+    console.error('onIntakeReady: Error getting link to slack details', {
+      channel: neighborhoodChannelID,
+      ticket: fields.ticketID,
+      response: detailsLinkResponse,
+    });
+    return null;
+  }
+
+  // Populate the slack link in the record
+  await updateRecord(
+    INTAKE_TABLE,
+    id,
+    {
+      'Slack Post Link': postLinkResponse.permalink,
+      'Slack Post Thread Link': detailsLinkResponse.permalink,
+    },
+    meta
+  );
+
   return {
     intakePostChan: neighborhoodChannelID,
-    intakePostTs: postResponse.ts
+    intakePostTs: postResponse.ts,
   };
 }
 
@@ -240,6 +305,46 @@ async function onReimbursementCreated(id, fields) {
   return {};
 }
 
+// TODO : update this post to reflect ticket status changes
+async function sendDigest() {
+  const unassignedTickets = _.filter(
+    await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
+    ([, , meta]) => !meta.ignore,
+  );
+
+  const chan = CHANNEL_IDS.delivery_volunteers;
+
+  let postResponse;
+  if (unassignedTickets.length !== 0) {
+    postResponse = await bot.chat.postMessage({
+      channel: chan,
+      text: '*Delivery Request Summary*',
+      blocks: await getTicketSummaryBlocks(unassignedTickets),
+    });
+  } else {
+    // Just in case this happens ;)
+    postResponse = await bot.chat.postMessage({
+      channel: chan,
+      text: '*Delivery Request Summary*\nNo unassigned tickets! :confetti_ball:',
+    });
+  }
+
+  if (postResponse.ok) {
+    console.log('sendDigest: Sent daily digest', {
+      channel: chan,
+      timestamp: postResponse.ts,
+    });
+  } else {
+    console.error('sendDigest: Failed to send daily digest', {
+      channel: chan,
+      response: postResponse,
+    });
+    return null;
+  }
+
+  return null;
+}
+
 // Processes all tickets in a table that have a new status
 async function pollTable(table, statusToCallbacks) {
   const changedTickets = await getChangedRecords(table);
@@ -310,5 +415,15 @@ module.exports = {
     };
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
+  }),
+  // Scheduled for 7am and 5pm
+  sendDigest: functions.pubsub.schedule('0 7/17 * * *').onRun(async () => {
+    try {
+      await sendDigest();
+      console.log('sendDigest: successfully sent digest');
+    } catch (exception) {
+      console.error('sendDigest: encountered an error sending digest', exception);
+    }
+    return null;
   }),
 };
