@@ -106,7 +106,7 @@ async function onIntakeReady(id, fields, meta) {
     return null;
   }
 
-  // Get a link the the post
+  // Get a link to the post
   const postLinkResponse = await bot.chat.getPermalink({
     channel: neighborhoodChannelID,
     message_ts: postResponse.ts
@@ -131,7 +131,7 @@ async function onIntakeReady(id, fields, meta) {
     return null;
   }
 
-  // Get a link the the details
+  // Get a link to the details post
   const detailsLinkResponse = await bot.chat.getPermalink({
     channel: neighborhoodChannelID,
     message_ts: detailsResponse.ts,
@@ -307,14 +307,12 @@ async function onReimbursementCreated(id, fields) {
 
 // TODO : update this post to reflect ticket status changes
 async function sendDigest() {
-  // TODO
-  // const unassignedTickets = _.filter(
-  //   await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
-  //   ([, , meta]) => !meta.ignore,
-  // );
-  const unassignedTickets = await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer');
+  const unassignedTickets = _.filter(
+    await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
+    ([, , meta]) => !meta.ignore,
+  );
 
-  const chan = CHANNEL_IDS.tickets;
+  const chan = CHANNEL_IDS.delivery_volunteers;
 
   let postResponse;
   if (unassignedTickets.length !== 0) {
@@ -332,12 +330,12 @@ async function sendDigest() {
   }
 
   if (postResponse.ok) {
-    console.log('sendDailyDigest: Sent daily digest', {
+    console.log('sendDigest: Sent daily digest', {
       channel: chan,
       timestamp: postResponse.ts,
     });
   } else {
-    console.error('sendDailyDigest: Failed to send daily digest', {
+    console.error('sendDigest: Failed to send daily digest', {
       channel: chan,
       response: postResponse,
     });
@@ -418,7 +416,8 @@ module.exports = {
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
-  sendDigest: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
+  // Scheduled for 7am and 5pm
+  sendDigest: functions.pubsub.schedule('0 7/17 * * *').onRun(async () => {
     try {
       await sendDigest();
       console.log('sendDigest: successfully sent digest');

@@ -105,7 +105,6 @@ async function getRecordsWithTicketID(table, ticketID) {
   return records.map(normalizeRecords(table));
 }
 
-// TODO : respect `ignore` meta
 async function getRecordsWithStatus(table, status) {
   const query = base(table).select({
     filterByFormula: `{Status} = "${status}"`
