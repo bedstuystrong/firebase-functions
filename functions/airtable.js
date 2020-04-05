@@ -10,7 +10,7 @@ const {
   REIMBURSEMENT_SCHEMA,
 } = require('./schema');
 
-const IS_PROD = functions.config().environment.type === 'prod'
+const IS_PROD = functions.config().environment.type === 'prod';
 
 const airtable = new Airtable({
   apiKey: functions.config().airtable.api_key,
@@ -105,6 +105,15 @@ async function getRecordsWithTicketID(table, ticketID) {
   return records.map(normalizeRecords(table));
 }
 
+// TODO : respect `ignore` meta
+async function getRecordsWithStatus(table, status) {
+  const query = base(table).select({
+    filterByFormula: `{Status} = "${status}"`
+  });
+  const records = await query.all();
+  return records.map(normalizeRecords(table));
+}
+
 // Returns only intake tickets whose status has changed since we last checked
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
 // NOTE that this function will only work if the table has a `Status` field
@@ -145,6 +154,22 @@ async function getVolunteerSlackID(volunteerID) {
   return normalize(rec.fields, VOLUNTEER_SCHEMA).slackUserID;
 }
 
+// Returns the number of days left to complete the ticket
+// TODO : come back and make sure the math here represents what we want
+function getTicketDueDate(fields) {
+  const NEED_IMMEDIACY_TO_DAYS = {
+    'Before the end of the day': 1,
+    'Within a day or two': 2,
+    'Within a week': 7,
+    'As soon as possible': 0,
+  };
+
+  const dateCreated = new Date(fields.dateCreated);
+  const daysAllotted = NEED_IMMEDIACY_TO_DAYS[fields.timeline];
+
+  return Math.round((dateCreated - Date.now()) / (1000 * 60 * 60 * 24) + daysAllotted);
+}
+
 module.exports = {
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
@@ -155,7 +180,9 @@ module.exports = {
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
   getPhoneNumberId: getPhoneNumberId,
+  getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
+  getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
   updateRecord: updateRecord,
 };
