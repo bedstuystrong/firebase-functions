@@ -1,6 +1,6 @@
 const functions = require('firebase-functions');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
-const Busboy = require('busboy');
+
 
 const {
   middleware,
@@ -12,21 +12,6 @@ const {
   createMessage,
   createVoicemail,
 } = require('./airtable');
-
-
-const multipartMiddleware = (req, res, next) => {
-  const busboy = new Busboy({ headers: req.headers });
-
-  busboy.on('field', (fieldname, value) => {
-    req.body[fieldname] = value;
-  });
-
-  busboy.on('finish', () => {
-    next();
-  });
-
-  busboy.end(req.rawBody);
-};
 
 
 module.exports = {
@@ -67,17 +52,6 @@ module.exports = {
     return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
-    });
-  }),
-
-  email: functions.https.onRequest((req, res) => {
-    return multipartMiddleware(req, res, () => {
-      // const { from, subject, html } = req.body;
-      /* 
-        TODO parse those ⬆️ !!!
-        like switch (from) and then have a parser(subject, html) for each service
-      */
-      res.status(200).send('OK');
     });
   }),
 
