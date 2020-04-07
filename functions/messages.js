@@ -27,7 +27,7 @@ async function getIntakePostContent(fields) {
     });
   }
 
-  let content = `<@${intakeVolunteerSlackID}> got a new volunteer request from our neighbor ${fields.requestName}
+  let content = `<@${intakeVolunteerSlackID}> got a new request from our neighbor ${fields.requestName}
 
 *Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n`;
 
@@ -45,14 +45,11 @@ async function getIntakePostContent(fields) {
   // Divides the status form the other info
   content += '\n';
 
-  content += `
-*Ticket ID*: ${fields.ticketID}
-*Timeline*: ${fields.timeline}
+  content += `*Ticket ID*: ${fields.ticketID}
 *Cross Streets*: ${fields.crossStreets}
-*Need*: ${fields.category}
-*Household Size*: ${fields.householdSize || ':question:'}
+*Timeline*: ${fields.timeline}
 
-*Want to help ${fields.requestName}?* Comment on this thread and an intake volunteer will follow up with more details. :point_down:
+*Want to help ${fields.requestName}?* Comment on this thread. :point_down:
 `;
 
   return content;
@@ -64,9 +61,11 @@ async function getIntakePostContent(fields) {
  */
 async function getIntakePostDetails(fields) {
   return `
-*Description*: ${fields.description}
+*Need*: ${fields.category}
+*Household Size*: ${fields.householdSize || ':question:'}
 *Language*: ${fields.language}
 
+*Description*: ${fields.description}
 *Requested*: ${fields.items}
 `;
 }
@@ -147,7 +146,7 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Delivery Request Summary*\n\n:warning: _Overdue!_, :fire: _Due Today_, :turtle: _< ${minDueDate} Days Left_`,
+        text: `*Delivery Request Summary*\n\n:fire: _Overdue!_, :warning: _Due Today_, :turtle: _< ${minDueDate} Days Left_`,
       }
     },
   ];
@@ -218,9 +217,9 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
 
       let urgencyEmoji;
       if (dueDate < 0) {
-        urgencyEmoji = ':warning:';
-      } else if (dueDate < 1) {
         urgencyEmoji = ':fire:';
+      } else if (dueDate < 1) {
+        urgencyEmoji = ':warning:';
       } else {
         urgencyEmoji = ':turtle:';
       }
