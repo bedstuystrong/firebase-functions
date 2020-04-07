@@ -1,0 +1,27 @@
+{
+  "environment": {
+    "type": "test"
+  },
+  "airtable": {
+    "intake_contacts_table": "_test_intake_number",
+    "api_key": "keya0b1c2d3e4f5",
+    "inbound_table": "_test_inbound",
+    "base_id": "abcd1234567abcdef",
+    "intake_table": "_test_intake",
+    "reimbursements_table": "_reimbursements",
+    "volunteers_table": "_test_volunteers",
+    "intake_messages_table": "_test_sms_intake_messages"
+  },
+  "slack": {
+    "token": "xoxb-123456654321-6543210123456-a0b1c2d3e4f5g6h7i8j9K0L1",
+    "channel_to_id": {
+      "channel_name1": "CHANNELID1",
+      "channel_name2": "CHANNELID2"
+    },
+    "test_user_id": "AABBCCDDE"
+  },
+  "twilio": {
+    "sid": "",
+    "auth_token": ""
+  }
+}

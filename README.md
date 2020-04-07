@@ -1,40 +1,39 @@
-# automation firebase project
+# bss-firebase
 
-`firebase emulators:start`
+## Introduction
 
-to deploy one set of functions:
-`firebase deploy --only functions:[namespace]`
+This repo name is a misnomer! What we actually have is a -- er -- _monorepo_ composed of two distinct deployments:
 
-to deploy just the website:
-`firebase deploy --only hosting`
+- [www.bedstuystrong.com](https://bedstuystrong.com/) (`./public/*`)
+- *Cloud Functions for Slack* (`./functions/*`)
 
-## config
+## Prerequisites
 
-https://firebase.google.com/docs/functions/config-env
+- airtable access
+- firebase access (prod and test)
+- github org membership
+- join #tickets (for test functions slack app)
+- join #automation (for... this)
 
-config structure
-```json
-{
-  "airtable": {
-    "api_key": "",
-    "base_id": "",
-    "inbound_table": "",
-    "intake_table": "",
-    "reimbursements_table": "",
-    "volunteers_table": ""
-  },
-  "twilio": {
-    "auth_token": "",
-    "sid": ""
-  },
-  "slack": {
-    "token": "",
-    "channel_to_id": {}
-  }
-}
+## Installation
+
+1. Fork repo.
+1. `git clone git@github.com:[your user/org name here i guess]/firebase-functions.git`
+1. `cd functions && npm i`
+
+## Configuration
+
+- Review the [firebase docs here](https://firebase.google.com/docs/functions/config-env).
+- See `./config-sample.json`
+
+## Testing
+
+```sh
+% npm run firebase:test
+% npm run deploy
 ```
 
-## polling functions
+### polling functions
 
 to test scheduled functions, add the following to `functions/index.js` and hit endpoint to trigger functions
 
@@ -52,8 +51,17 @@ exports.test = functions.https.onRequest(async (_req, res) => {
 });
 ```
 
-## inbound functions
+### inbound functions
 
 twilio is weird and makes voicemails into something that requires 3 separate requests https://www.twilio.com/docs/voice/twiml/record (we can replace at least 1 with a static url)
 
 https://firebase.google.com/docs/functions/http-events#use_middleware_modules_with
+
+## Deployment
+
+to deploy one set of functions:
+`firebase deploy --only functions:[namespace]`
+
+to deploy just the website:
+`firebase deploy --only hosting`
+
