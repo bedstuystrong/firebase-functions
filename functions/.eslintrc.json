@@ -10,6 +10,14 @@
   "plugins": [
     "promise"
   ],
+  "overrides": [
+    {
+      "files": ["*.test.js"],
+      "env": {
+        "mocha": true
+      }
+    }
+  ],
   "extends": "eslint:recommended",
   "rules": {
 

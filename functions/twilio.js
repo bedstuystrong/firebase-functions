@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const twilio = require('twilio');
 const URL = require('url');
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
 
 const { MessagingResponse, VoiceResponse } = twilio.twiml;
 
@@ -61,6 +62,21 @@ module.exports = {
       transcribeCallback: '/inbound-voicemail',
     });
     return twiml.toString();
+  },
+
+  parseNumber: (twilioNumber) => {
+    switch (twilioNumber) {
+    case '+266696687':
+      return 'Anonymous';
+    case '+7378742833':
+      return 'Restricted';
+    case '+2562533':
+      return 'Blocked';
+    case '+8656696':
+      return 'Unknown';
+    default:
+      return parsePhoneNumberFromString(twilioNumber).formatNational();
+    }
   },
 
 };

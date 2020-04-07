@@ -31,26 +31,6 @@ const TABLE_SCHEMAS = {
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_SCHEMA,
 };
 
-function getPhoneNumberId(phoneNumber) {
-  return base(INBOUND_CONTACTS_TABLE).select({
-    maxRecords: 1,
-    filterByFormula: `{phone_number} = "${phoneNumber}"`
-  }).firstPage().then(records => {
-    if (records[0]) {
-      return records;
-    } else {
-      return base(INBOUND_CONTACTS_TABLE).create([
-        {
-          fields: {
-            phone_number: phoneNumber,
-            intake_status: 'Intake Needed'
-          }
-        }
-      ]);
-    }
-  }).then(records => records[0].id);
-}
-
 function createMessage(phoneNumber, message) {
   const fields = denormalize({
     status: 'Intake Needed',
@@ -70,14 +50,6 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
     voicemailRecording: recordingUrl,
   }, INBOUND_SCHEMA);
   return base(INBOUND_TABLE).create([{ fields }]);
-}
-
-function parseRecord(record) {
-  return [
-    record.id,
-    normalize(record.fields),
-    record.fields._meta ? JSON.parse(record.fields._meta) : {}
-  ];
 }
 
 function normalizeRecords(table) {
@@ -177,7 +149,6 @@ module.exports = {
   createVoicemail: createVoicemail,
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
-  getPhoneNumberId: getPhoneNumberId,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
