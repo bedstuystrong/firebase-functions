@@ -42,6 +42,7 @@ const REIMBURSEMENT_SCHEMA = {
 };
 
 const VOLUNTEER_SCHEMA = {
+  status: STATUS,
   slackUserID: 'Slack User ID',
 };
 
