@@ -44,6 +44,9 @@ const REIMBURSEMENT_SCHEMA = {
 const VOLUNTEER_SCHEMA = {
   status: STATUS,
   slackUserID: 'Slack User ID',
+  slackEmail: 'Email Address (from Slack)',
+  slackHandle: 'Slack Handle',
+  slackHandleDerived: 'Slack Handle (Derived)',
 };
 
 const normalize = (object, schema) => {
