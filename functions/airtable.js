@@ -99,6 +99,14 @@ async function getAllRecords(table) {
   return records.map(normalizeRecords(table));
 }
 
+async function getVolunteersUnProcessed(table) {
+  const query = base(table).select({
+    filterByFormula: '{Status} = ""'
+  });
+  const records = await query.all();
+  return records.map(normalizeRecords(table));
+}
+
 async function getRecordsWithTicketID(table, ticketID) {
   const query = base(table).select({
     filterByFormula: `{Ticket ID} = "${ticketID}"`
@@ -215,6 +223,7 @@ module.exports = {
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
+  getVolunteersUnProcessed: getVolunteersUnProcessed,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
 };

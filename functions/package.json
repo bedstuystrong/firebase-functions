@@ -6,7 +6,9 @@
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
+    "delete:poll": "firebase functions:delete poll",
     "deploy": "firebase deploy --only functions",
+    "deploy:poll": "firebase deploy --only functions:poll",
     "logs": "firebase functions:log",
     "test": "mocha --reporter spec"
   },

@@ -9,11 +9,13 @@ const {
   INTAKE_TABLE,
   META_STORE_KEYS,
   REIMBURSEMENTS_TABLE,
+  VOLUNTEER_FORM_TABLE,
   getChangedRecords,
   getMeta,
   getRecordsWithStatus,
   getRecordsWithTicketID,
   getVolunteerSlackID,
+  getVolunteersUnProcessed,
   storeMeta,
   updateRecord,
 } = require('./airtable');
@@ -279,6 +281,39 @@ async function onIntakeCompleted(id, fields, meta) {
   return {};
 }
 
+async function onVolunteerCreated(id, fields) {
+  console.log('onVolunteerCreated', { record: id, ticket: fields.ticketID });
+
+  // TODO : error handling
+  // TODO: check volunteer record and do comparison
+  console.debug('id', {id})
+  console.debug('fields', {fields})
+  const newVolRecords = await getVolunteersUnProcessed(INTAKE_TABLE)
+
+  if (newVolRecords.length > 1) {
+  //   console.error('onVolunteerCreated: Multiple intake records exist for ticket', {
+  //     record: id,
+  //     ticket: fields.ticketID,
+  //   });
+  // } else if (intakeRecords.length === 0) {
+  //   console.error('onVolunteerCreated: No intake records exist for ticket', {
+  //     record: id,
+  //     ticket: fields.ticketID,
+  //   });
+  // } else {
+  //   // Close the intake ticket
+  //   // NOTE that this will trigger the intake ticket on complete function
+  //   const [intakeID, , intakeMeta] = intakeRecords[0];
+
+    // await updateRecord(VOLUNTEER_FORM_TABLE, intakeID, { status: 'Processed' }, intakeMeta);
+    console.debug('in newVolRecords')
+    console.log('onVolunteerCreated: Processed volunteer', {
+      record: id,
+    });
+  }
+  return {};
+}
+
 async function onReimbursementCreated(id, fields) {
   console.log('onReimbursementCreated', { record: id, ticket: fields.ticketID });
 
@@ -397,10 +432,12 @@ async function updateDigest() {
 }
 
 // Processes all tickets in a table that have a new status
+// UPDATES for #28 to make this more generic
 async function pollTable(table, statusToCallbacks) {
-  const changedTickets = await getChangedRecords(table);
+  console.debug('in pollTable')
+  const changedRecords = await getChangedRecords(table);
 
-  if (changedTickets.length === 0) {
+  if (changedRecords.length === 0) {
     return Promise.resolve();
   }
 
@@ -410,7 +447,8 @@ async function pollTable(table, statusToCallbacks) {
   // where we could miss the intermediate state (i.e. assigned).
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-  const updates = changedTickets.map(async ([id, fields, meta]) => {
+
+  const updates = changedRecords.map(async ([id, fields, meta]) => {
     // NOTE that this is a mechanism to easily allow us to ignore tickets in airtable
     if (meta.ignore) {
       return null;
@@ -467,6 +505,16 @@ module.exports = {
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
+  // TODO #28 
+  volunteers: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
+    const STATUS_TO_CALLBACKS = {
+      '': [onVolunteerCreated],
+      'Processed': [],
+    };
+    console.debug('in volunteers')
+    return await pollTable(VOLUNTEER_FORM_TABLE, STATUS_TO_CALLBACKS);
+  }),
+  // END TODO
   // Scheduled for 7am and 5pm
   sendDigest: functions.pubsub.schedule('0 7,17 * * *').timeZone('America/New_York').onRun(async () => {
     try {
