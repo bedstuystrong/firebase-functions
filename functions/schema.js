@@ -47,6 +47,7 @@ const REIMBURSEMENT_SCHEMA = {
 
 const VOLUNTEER_SCHEMA = {
   status: STATUS,
+  email: 'Email Address',
   slackUserID: 'Slack User ID',
   slackEmail: 'Email Address (from Slack)',
   slackHandle: 'Slack Handle',

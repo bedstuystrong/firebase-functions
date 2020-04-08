@@ -282,24 +282,51 @@ async function onIntakeCompleted(id, fields, meta) {
 }
 
 async function checkVolunteers(table) {
-  console.log('in checkVolunteers')
-  const newVolunteerRecords = await getRecordsWithStatus(table, '')
-  if (newVolunteerRecords.length > 0) {
-    console.log('newVolunteerRecords', newVolunteerRecords.length)
-  }
-  /* TODO FOR #28:
-    - WE NOW HAVE STATUS == '' RECORDS
-    - ITERATE RECORDS
-    - PER RECORD CHECK IF THE EMAIL IS IN SLACK
-    - - IF TRUE ADD SLACK INFOS
-    - - - Email Address (from Slack)
-    - - - Slack Handle
-    - - - Slack Handle (Derived)
-    - - - Slack User ID
-    - - AND FLICK TO STATUS == PROCESSED
-    - - // TODO #23 IF FALSE MESSAGE A SLACK GROUP WITH ERROR AND LOG
-    - HAVE A NICE DAY
-  */
+  console.log('in checkVolunteers');
+  const newVolunteerRecords = await getRecordsWithStatus(table, '');
+  console.log('newVolunteerRecords typeof', typeof newVolunteerRecords);
+  console.log('newVolunteerRecords.length', newVolunteerRecords.length);
+  const arrProcessed = newVolunteerRecords.map(async ([id, fields, ]) => { // ITERATE RECORDS
+    // console.log(`id: ${id}`);
+    // console.log(`email: ${fields.email || ''}`);
+    // console.log(`slackUserID: ${fields.slackUserID || ''}`);
+    // console.log(`slackEmail: ${fields.slackEmail || ''}`);
+    // TODO FOR #28:  GET SCOPE `users:read.email` ADDED TO BOT USER
+    // try {
+    //   const retVal = await bot.users.lookupByEmail({ email: fields.email}); // PER RECORD CHECK IF THE EMAIL IS IN SLACK
+    //   console.log(`retVal: ${JSON.stringify(user)}`);
+    // } catch (exception) {
+    //   console.error('checkVolunteers: exception on lookupByEmail', exception);
+    // }
+    const testData = `test${Math.floor(Math.random() * 10)}`;
+    const retVal = {
+      ok: true,
+      user: {
+        id: testData,
+        profile: {
+          display_name: testData,
+          display_name_normalized: testData,
+          email: fields.email
+        }
+      }
+    };
+    console.log(`retVal: ${JSON.stringify(retVal)}`);
+    // IF TRUE ADD SLACK INFOS
+    // AND FLICK TO STATUS == 'Processed'
+    await updateRecord(
+      VOLUNTEER_FORM_TABLE,
+      id,
+      {
+        slackUserID: retVal.user.id,
+        slackEmail: retVal.user.profile.email,
+        slackHandle: retVal.user.profile.display_name,
+        slackHandleDerived: retVal.user.profile.display_name_normalized,
+        status: '' // TODO FOR #28 Flip back to Processed when we can
+      }
+    );
+    // TODO FOR #23 IF FALSE MESSAGE A SLACK GROUP WITH ERROR AND LOG
+    return null;
+  });
   return null;
 }
 
@@ -493,7 +520,7 @@ module.exports = {
   }),
   volunteers: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     try {
-      await checkVolunteers(VOLUNTEER_FORM_TABLE)
+      await checkVolunteers(VOLUNTEER_FORM_TABLE);
     } catch (exception) {
       console.error('poll-volunteers: exception', exception);
     }
