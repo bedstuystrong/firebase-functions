@@ -281,37 +281,26 @@ async function onIntakeCompleted(id, fields, meta) {
   return {};
 }
 
-async function onVolunteerCreated(id, fields) {
-  console.log('onVolunteerCreated', { record: id, ticket: fields.ticketID });
-
-  // TODO : error handling
-  // TODO: check volunteer record and do comparison
-  console.debug('id', {id})
-  console.debug('fields', {fields})
-  const newVolRecords = await getVolunteersUnProcessed(INTAKE_TABLE)
-
-  if (newVolRecords.length > 1) {
-  //   console.error('onVolunteerCreated: Multiple intake records exist for ticket', {
-  //     record: id,
-  //     ticket: fields.ticketID,
-  //   });
-  // } else if (intakeRecords.length === 0) {
-  //   console.error('onVolunteerCreated: No intake records exist for ticket', {
-  //     record: id,
-  //     ticket: fields.ticketID,
-  //   });
-  // } else {
-  //   // Close the intake ticket
-  //   // NOTE that this will trigger the intake ticket on complete function
-  //   const [intakeID, , intakeMeta] = intakeRecords[0];
-
-    // await updateRecord(VOLUNTEER_FORM_TABLE, intakeID, { status: 'Processed' }, intakeMeta);
-    console.debug('in newVolRecords')
-    console.log('onVolunteerCreated: Processed volunteer', {
-      record: id,
-    });
+async function checkVolunteers(table) {
+  console.log('in checkVolunteers')
+  const newVolunteerRecords = await getRecordsWithStatus(table, '')
+  if (newVolunteerRecords.length > 0) {
+    console.log('newVolunteerRecords', newVolunteerRecords.length)
   }
-  return {};
+  /* TODO FOR #28:
+    - WE NOW HAVE STATUS == '' RECORDS
+    - ITERATE RECORDS
+    - PER RECORD CHECK IF THE EMAIL IS IN SLACK
+    - - IF TRUE ADD SLACK INFOS
+    - - - Email Address (from Slack)
+    - - - Slack Handle
+    - - - Slack Handle (Derived)
+    - - - Slack User ID
+    - - AND FLICK TO STATUS == PROCESSED
+    - - // TODO #23 IF FALSE MESSAGE A SLACK GROUP WITH ERROR AND LOG
+    - HAVE A NICE DAY
+  */
+  return null;
 }
 
 async function onReimbursementCreated(id, fields) {
@@ -432,12 +421,10 @@ async function updateDigest() {
 }
 
 // Processes all tickets in a table that have a new status
-// UPDATES for #28 to make this more generic
 async function pollTable(table, statusToCallbacks) {
-  console.debug('in pollTable')
-  const changedRecords = await getChangedRecords(table);
+  const changedTickets = await getChangedRecords(table);
 
-  if (changedRecords.length === 0) {
+  if (changedTickets.length === 0) {
     return Promise.resolve();
   }
 
@@ -447,8 +434,7 @@ async function pollTable(table, statusToCallbacks) {
   // where we could miss the intermediate state (i.e. assigned).
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-
-  const updates = changedRecords.map(async ([id, fields, meta]) => {
+  const updates = changedTickets.map(async ([id, fields, meta]) => {
     // NOTE that this is a mechanism to easily allow us to ignore tickets in airtable
     if (meta.ignore) {
       return null;
@@ -505,16 +491,14 @@ module.exports = {
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
-  // TODO #28 
   volunteers: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
-    const STATUS_TO_CALLBACKS = {
-      '': [onVolunteerCreated],
-      'Processed': [],
-    };
-    console.debug('in volunteers')
-    return await pollTable(VOLUNTEER_FORM_TABLE, STATUS_TO_CALLBACKS);
+    try {
+      await checkVolunteers(VOLUNTEER_FORM_TABLE)
+    } catch (exception) {
+      console.error('poll-volunteers: exception', exception);
+    }
+    return null;
   }),
-  // END TODO
   // Scheduled for 7am and 5pm
   sendDigest: functions.pubsub.schedule('0 7,17 * * *').timeZone('America/New_York').onRun(async () => {
     try {
