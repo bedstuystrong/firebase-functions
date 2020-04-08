@@ -16,8 +16,8 @@ module.exports = {
         return res.status(200).send('OK');
       }
 
-      const useResult = ({ platform, name, amount }) => {
-        console.log({platform, name, amount});
+      const useResult = ({ platform, direction, name, amount }) => {
+        console.log({platform, direction, name, amount});
       };
       /* 
         TODO parse things
@@ -26,7 +26,7 @@ module.exports = {
       const toPrefix = to.replace(/@.+$/m, '');
       switch (toPrefix) {
       case 'funds+venmo': {
-        const fromMatches = subject.match(/(.+) paid you (\$[\d\.,]+)/i);
+        const fromMatches = subject.match(/(?:fwd:\s)?(.+) paid you (\$[\d\.,]+)/i);
         const toMatches = subject.match(/You paid (.+) (\$[\d\.,]+)/i);
 
         if (fromMatches) {
