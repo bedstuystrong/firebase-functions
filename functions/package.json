@@ -5,8 +5,7 @@
   "scripts": {
     "config:get": "npx firebase functions:config:get",
     "config:test": "npx firebase use test",
-    "deploy": "npx firebase deploy --only functions",
-    "deploy:poll": "npx firebase deploy --only functions:poll",
+    "deploy": "npx firebase deploy",
     "lint": "npx eslint .",
     "lint:fix": "npx eslint . --fix",
     "logs": "npx firebase functions:log",

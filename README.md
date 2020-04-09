@@ -24,7 +24,7 @@ This repo name is a misnomer! What we actually have is a -- er -- _monorepo_ com
 ## Configuration
 
 - Review the [firebase docs here](https://firebase.google.com/docs/functions/config-env).
-- See `./config-sample.json`
+- See `./firebase-config.json.sample` for guidance.
 
 ## Testing
 
@@ -60,8 +60,8 @@ https://firebase.google.com/docs/functions/http-events#use_middleware_modules_wi
 ## Deployment
 
 to deploy one set of functions:
-`firebase deploy --only functions:[namespace]`
+`npx firebase deploy --only functions:[namespace]`
 
 to deploy just the website:
-`firebase deploy --only hosting`
+`npx firebase deploy --only hosting`
 
