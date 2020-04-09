@@ -11,7 +11,6 @@
     "lint": "npx eslint .",
     "lint:fix": "npx eslint . --fix",
     "logs": "npx firebase functions:log",
-    "logs:poll:vols": "npx firebase functions:log --only poll-volunteers",
     "reboot:poll": "run-s delete:poll:force deploy:poll",
     "serve": "npx firebase emulators:start --only functions",
     "shell": "npx firebase functions:shell",
