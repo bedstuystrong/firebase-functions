@@ -278,49 +278,36 @@ async function onIntakeCompleted(id, fields, meta) {
 }
 
 async function checkVolunteers(table) {
-  console.log('in checkVolunteers');
   const newVolunteerRecords = await getRecordsWithStatus(table, '');
-  console.log('newVolunteerRecords typeof', typeof newVolunteerRecords);
   console.log('newVolunteerRecords.length', newVolunteerRecords.length);
   const arrProcessed = newVolunteerRecords.map(async ([id, fields, ]) => { // ITERATE RECORDS
-    // console.log(`id: ${id}`);
-    // console.log(`email: ${fields.email || ''}`);
-    // console.log(`slackUserID: ${fields.slackUserID || ''}`);
-    // console.log(`slackEmail: ${fields.slackEmail || ''}`);
-    // TODO FOR #28:  GET SCOPE `users:read.email` ADDED TO BOT USER
-    // try {
-    //   const retVal = await bot.users.lookupByEmail({ email: fields.email}); // PER RECORD CHECK IF THE EMAIL IS IN SLACK
-    //   console.log(`retVal: ${JSON.stringify(user)}`);
-    // } catch (exception) {
-    //   console.error('checkVolunteers: exception on lookupByEmail', exception);
-    // }
-    const testData = `test${Math.floor(Math.random() * 10)}`;
-    const retVal = {
-      ok: true,
-      user: {
-        id: testData,
-        profile: {
-          display_name: testData,
-          display_name_normalized: testData,
-          email: fields.email
-        }
-      }
-    };
-    console.log(`retVal: ${JSON.stringify(retVal)}`);
-    // IF TRUE ADD SLACK INFOS
+    let retVal;
+    try {
+      retVal = await bot.users.lookupByEmail({ email: fields.email }); // PER RECORD CHECK IF THE EMAIL IS IN SLACK
+    } catch (exception) {
+      // TODO FOR #23 MESSAGE A SLACK GROUP WITH ERROR
+      console.error(`checkVolunteers: exception on lookupByEmail: ${fields.email}`, exception);
+      return null;
+    }
+    // ADD SLACK INFOS TO AIRTABLE
     // AND FLICK TO STATUS == 'Processed'
-    await updateRecord(
-      VOLUNTEER_FORM_TABLE,
-      id,
-      {
-        slackUserID: retVal.user.id,
-        slackEmail: retVal.user.profile.email,
-        slackHandle: retVal.user.profile.display_name,
-        slackHandleDerived: retVal.user.profile.display_name_normalized,
-        status: '' // TODO FOR #28 Flip back to Processed when we can
-      }
-    );
-    // TODO FOR #23 IF FALSE MESSAGE A SLACK GROUP WITH ERROR AND LOG
+    const userHandle = retVal.user.profile.display_name || '' !== '' ? `@${retVal.user.profile.display_name}` : '';
+    try {
+      await updateRecord(
+        VOLUNTEER_FORM_TABLE,
+        id,
+        {
+          slackUserID: retVal.user.id,
+          slackEmail: retVal.user.profile.email,
+          slackHandleDerived: userHandle,
+          status: 'Processed'
+        }
+      );
+    } catch (exception) {
+      // TODO FOR #23 MESSAGE A SLACK GROUP WITH ERROR
+      console.error(`checkVolunteers: exception on updateRecord id:${id}`, exception);
+      return null;
+    }
     return null;
   });
   return null;
@@ -469,7 +456,7 @@ module.exports = {
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
-  volunteers: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
+  volunteers: functions.pubsub.schedule('every 2 minutes').onRun(async () => {
     try {
       await checkVolunteers(VOLUNTEER_FORM_TABLE);
     } catch (exception) {
