@@ -5,6 +5,10 @@ const invert = require('lodash/invert');
 const STATUS = 'Status';
 const META = '_meta';
 
+const META_STORE_KEYS = {
+  digestPostInfo: 'digest_post_info',
+};
+
 const INBOUND_SCHEMA = {
   status: STATUS,
   method: 'Method of Contact',
@@ -45,6 +49,10 @@ const VOLUNTEER_SCHEMA = {
   slackUserID: 'Slack User ID',
 };
 
+const META_SCHEMA = {
+  name: 'Name',
+};
+
 const normalize = (object, schema) => {
   const invertedSchema = invert(schema);
   return mapKeys(object, (_value, key) => (invertedSchema[key] || key));
@@ -52,12 +60,14 @@ const normalize = (object, schema) => {
 const denormalize = (object, schema) => mapKeys(object, (_value, key) => (schema[key] || key));
 
 module.exports = {
-  normalize,
-  denormalize,
-  STATUS,
-  META,
   INBOUND_SCHEMA,
   INTAKE_SCHEMA,
+  META,
+  META_SCHEMA,
+  META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
+  STATUS,
   VOLUNTEER_SCHEMA,
+  denormalize,
+  normalize,
 };

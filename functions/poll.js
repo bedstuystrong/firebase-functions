@@ -6,13 +6,16 @@ const _ = require('lodash');
 allSettled.shim();
 
 const {
+  INTAKE_TABLE,
+  META_STORE_KEYS,
+  REIMBURSEMENTS_TABLE,
   getChangedRecords,
+  getMeta,
   getRecordsWithStatus,
   getRecordsWithTicketID,
   getVolunteerSlackID,
+  storeMeta,
   updateRecord,
-  INTAKE_TABLE,
-  REIMBURSEMENTS_TABLE
 } = require('./airtable');
 
 const {
@@ -308,7 +311,6 @@ async function onReimbursementCreated(id, fields) {
   return {};
 }
 
-// TODO : update this post to reflect ticket status changes
 async function sendDigest() {
   const unassignedTickets = _.filter(
     await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
@@ -317,20 +319,11 @@ async function sendDigest() {
 
   const chan = CHANNEL_IDS.delivery_volunteers;
 
-  let postResponse;
-  if (unassignedTickets.length !== 0) {
-    postResponse = await bot.chat.postMessage({
-      channel: chan,
-      text: '*Delivery Request Summary*',
-      blocks: await getTicketSummaryBlocks(unassignedTickets),
-    });
-  } else {
-    // Just in case this happens ;)
-    postResponse = await bot.chat.postMessage({
-      channel: chan,
-      text: '*Delivery Request Summary*\nNo unassigned tickets! :confetti_ball:',
-    });
-  }
+  const postResponse = await bot.chat.postMessage({
+    channel: chan,
+    text: '*Delivery Request Summary*',
+    blocks: await getTicketSummaryBlocks(unassignedTickets),
+  });
 
   if (postResponse.ok) {
     console.log('sendDigest: Sent daily digest', {
@@ -344,6 +337,61 @@ async function sendDigest() {
     });
     return null;
   }
+
+  const digestPostInfo = await getMeta(META_STORE_KEYS.digestPostInfo);
+
+  try {
+    // Delete the last digest post
+    await bot.chat.delete({
+      channel: chan,
+      ts: digestPostInfo.ts,
+    });
+
+    console.log('sendDigest: Deleted old digest post', {
+      channel: chan,
+      timestamp: postResponse.ts,
+    });
+  } catch (e) {
+    console.error(`Failed to delete stale digest post: ${e}`, {
+      channel: chan,
+      ts: digestPostInfo.ts,
+    });
+  }
+
+  await storeMeta(META_STORE_KEYS.digestPostInfo, { chan: chan, ts: postResponse.ts });
+
+  return null;
+}
+
+async function updateDigest() {
+  const digestPostInfo = await getMeta(META_STORE_KEYS.digestPostInfo);
+
+  const unassignedTickets = _.filter(
+    await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
+    ([, , meta]) => !meta.ignore,
+  );
+
+  const updateResponse = await bot.chat.update({
+    channel: digestPostInfo.chan,
+    ts: digestPostInfo.ts,
+    text: '*Delivery Request Summary*',
+    blocks: await getTicketSummaryBlocks(unassignedTickets),
+  });
+
+  if (updateResponse.ok) {
+    console.log('updateDigest: Updated daily digest', {
+      channel: digestPostInfo.chan,
+      timestamp: updateResponse.ts,
+    });
+  } else {
+    console.error('updateDigest: Failed to update daily digest', {
+      channel: digestPostInfo.chan,
+      response: updateResponse,
+    });
+    return null;
+  }
+
+  await storeMeta(META_STORE_KEYS.digestPostInfo, { chan: digestPostInfo.chan, ts: updateResponse.ts });
 
   return null;
 }
@@ -426,6 +474,17 @@ module.exports = {
       console.log('sendDigest: successfully sent digest');
     } catch (exception) {
       console.error('sendDigest: encountered an error sending digest', exception);
+    }
+    return null;
+  }),
+  // Runs every five minutes, except for the first five minutes of every hour. This is a 
+  // precaution against racing `sendDigest`.
+  updateDigest: functions.pubsub.schedule('5-59/5 * * * *').onRun(async () => {
+    try {
+      await updateDigest();
+      console.log('updateDigest: successfully updated digest');
+    } catch (exception) {
+      console.error('updateDigest: encountered an error updating digest', exception);
     }
     return null;
   }),

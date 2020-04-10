@@ -141,6 +141,16 @@ _${safetyReminder}_
 }
 
 async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 15) {
+  if (tickets.length === 0) {
+    return {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: '\nNo unassigned tickets! :confetti_ball:',
+      }
+    };
+  }
+
   let blocks = [
     {
       type: 'section',

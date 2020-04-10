@@ -2,12 +2,13 @@ const functions = require('firebase-functions');
 const Airtable = require('airtable');
 
 const {
-  normalize,
-  denormalize,
   INBOUND_SCHEMA,
   INTAKE_SCHEMA,
-  VOLUNTEER_SCHEMA,
+  META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
+  VOLUNTEER_SCHEMA,
+  denormalize,
+  normalize,
 } = require('./schema');
 
 const IS_PROD = functions.config().environment.type === 'prod';
@@ -23,6 +24,7 @@ const INBOUND_TABLE = functions.config().airtable.inbound_table;
 const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
+const META_TABLE = functions.config().airtable.meta_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
@@ -168,19 +170,51 @@ function getTicketDueDate(fields) {
   return Math.round((dateCreated - Date.now()) / (1000 * 60 * 60 * 24) + daysAllotted);
 }
 
+async function _findMetaRecord(key) {
+  if (!Object.values(META_STORE_KEYS).includes(key)) {
+    throw Error('The provided key is not a valid key in the meta store', { key: key });
+  }
+
+  const query = base(META_TABLE).select({
+    filterByFormula: `{Name} = "${key}"`
+  });
+  const records = (await query.all()).map(normalizeRecords(META_TABLE));
+
+  if (records.length === 0) {
+    throw Error('Did not find a meta entry', { key: key });
+  } else if (records.length > 1) {
+    throw Error('Found duplicate meta entries', { key: key });
+  }
+
+  return records[0];
+}
+
+// Gets a meta object stored in the `_meta` table
+async function getMeta(key) {
+  return (await _findMetaRecord(key))[2];
+}
+
+async function storeMeta(key, data) {
+  return await updateRecord(META_TABLE, (await _findMetaRecord(key))[0], {}, data);
+}
+
 module.exports = {
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
+  META_STORE_KEYS: META_STORE_KEYS,
+  META_TABLE: META_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
   createMessage: createMessage,
   createVoicemail: createVoicemail,
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
+  getMeta: getMeta,
   getPhoneNumberId: getPhoneNumberId,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
+  storeMeta: storeMeta,
   updateRecord: updateRecord,
 };
