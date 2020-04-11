@@ -1,52 +1,43 @@
 
 const functions = require('firebase-functions');
+const { simpleParser } = require('mailparser');
+const get = require('lodash/get');
+const pick = require('lodash/pick');
+const intersection = require('lodash/intersection');
 
-
-const { sendgridMiddleware } = require('./email');
+const { sendgridMiddleware, extractPaymentDetails } = require('./email');
 
 module.exports = {
   email: functions.https.onRequest((req, res) => {
-    return sendgridMiddleware(req, res, () => {
-      const { from, to, headers, subject, html } = req.body;
-      if (!(
-        from.includes('ghostbaldwin@gmail.com') || 
-        from.includes('fund@bedstuystrong.com')
-      )) {
+    return sendgridMiddleware(req, res, async () => {
+      const email = pick(req.body, ['to', 'headers', 'subject', 'text']);
+
+      const parsed = await simpleParser(email.headers);
+      const date = parsed.headers.get('date');
+      const fromAddresses = parsed.headers.get('from').value.map(v => v.address);
+
+      if (intersection(fromAddresses, [
+        'ghostbaldwin@gmail.com',
+        'iaredada@gmail.com',
+        'fund@bedstuystrong.com'
+      ]).length === 0) {
         // Do nothing
         return res.status(200).send('OK');
       }
 
-      const useResult = ({ platform, direction, name, amount }) => {
-        console.log({platform, direction, name, amount});
-      };
       /* 
         TODO parse things
         have a parser(subject, html) for each service
       */
-      const toPrefix = to.replace(/@.+$/m, '');
-      switch (toPrefix) {
-      case 'funds+venmo': {
-        const fromMatches = subject.match(/(?:fwd:\s)?(.+) paid you (\$[\d\.,]+)/i);
-        const toMatches = subject.match(/You paid (.+) (\$[\d\.,]+)/i);
+      const paymentPlatform = get(email.to.match(/^funds\+([a-z]+)@.+$/m, ''), 1);
+      if (!paymentPlatform) {
+        // todo error
+        throw new Error(`invalid "to" email ${email.to}`);
+      }
 
-        if (fromMatches) {
-          useResult({
-            platform: 'Venmo',
-            direction: 'In',
-            name: fromMatches[1],
-            amount: fromMatches[2]
-          });
-        } else if (toMatches) {
-          useResult({
-            platform: 'Venmo',
-            direction: 'Out',
-            name: toMatches[1],
-            amount: toMatches[2]
-          });
-        }
-        break;
-      }
-      }
+      const result = extractPaymentDetails(paymentPlatform, email);
+      console.log({result}, {date})
+
       return res.status(200).send('OK');
     });
   }),

@@ -27,6 +27,7 @@
     "firebase-functions": "^3.3.0",
     "libphonenumber-js": "^1.7.48",
     "lodash": "^4.17.15",
+    "mailparser": "^2.7.7",
     "promise.allsettled": "^1.0.2",
     "slack": "^11.0.2",
     "twilio": "^3.41.1"
