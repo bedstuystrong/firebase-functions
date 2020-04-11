@@ -15,7 +15,6 @@ const {
   getRecordsWithStatus,
   getRecordsWithTicketID,
   getVolunteerSlackID,
-  getVolunteersUnProcessed,
   storeMeta,
   updateRecord,
 } = require('./airtable');
@@ -281,40 +280,35 @@ async function onIntakeCompleted(id, fields, meta) {
   return {};
 }
 
-async function checkVolunteers(table) {
-  const newVolunteerRecords = await getRecordsWithStatus(table, '');
-  console.log('newVolunteerRecords.length', newVolunteerRecords.length);
-  const arrProcessed = newVolunteerRecords.map(async ([id, fields, ]) => { // ITERATE RECORDS
-    let retVal;
-    try {
-      retVal = await bot.users.lookupByEmail({ email: fields.email }); // PER RECORD CHECK IF THE EMAIL IS IN SLACK
-    } catch (exception) {
-      // TODO FOR #23 MESSAGE A SLACK GROUP WITH ERROR
-      console.error(`checkVolunteers: exception on lookupByEmail: ${fields.email}`, exception);
-      return null;
-    }
-    // ADD SLACK INFOS TO AIRTABLE
-    // AND FLICK TO STATUS == 'Processed'
-    const userHandle = retVal.user.profile.display_name || '' !== '' ? `@${retVal.user.profile.display_name}` : '';
-    try {
-      await updateRecord(
-        VOLUNTEER_FORM_TABLE,
-        id,
-        {
-          slackUserID: retVal.user.id,
-          slackEmail: retVal.user.profile.email,
-          slackHandleDerived: userHandle,
-          status: 'Processed'
-        }
-      );
-    } catch (exception) {
-      // TODO FOR #23 MESSAGE A SLACK GROUP WITH ERROR
-      console.error(`checkVolunteers: exception on updateRecord id:${id}`, exception);
-      return null;
-    }
+async function onNewVolunteer(id, fields) {
+  console.log('onNewVolunteer', { id: id, email: fields.email });
+
+  let res;
+  try {
+    res = await bot.users.lookupByEmail({ email: fields.email });
+  } catch (exception) {
+    // TODO FOR #23 MESSAGE A SLACK GROUP WITH ERROR
+    console.error(`checkVolunteers: Error looking up volunteer by email: ${fields.email}`, exception);
     return null;
-  });
-  return null;
+  }
+
+  const username = (res.user.profile.display_name) ? res.user.profile.display_name : res.user.profile.real_name;
+  if (!username || username === '') {
+    console.error(`Didn't get a valid username for: ${fields.email}`, { res: res });
+    return null;
+  }
+
+  await updateRecord(
+    VOLUNTEER_FORM_TABLE,
+    id,
+    {
+      slackUserID: res.user.id,
+      slackEmail: res.user.profile.email,
+      slackHandleDerived: `@${username}`,
+    },
+  );
+
+  return {};
 }
 
 async function onReimbursementCreated(id, fields) {
@@ -434,22 +428,22 @@ async function updateDigest() {
   return null;
 }
 
-// Processes all tickets in a table that have a new status
-async function pollTable(table, statusToCallbacks) {
-  const changedTickets = await getChangedRecords(table);
+// Processes all records in a table that have a new status
+async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
+  const changedRecords = await getChangedRecords(table, includeNullStatus);
 
-  if (changedTickets.length === 0) {
+  if (changedRecords.length === 0) {
     return Promise.resolve();
   }
 
-  // TODO : it is possible for us to miss a step in the intake ticket state transitions.
+  // TODO : it is possible for us to miss a step in the state transitions.
   // For example, an intake ticket should go from "Seeking Volunteer" -> "Assigned" -> 
   // "Complete". Since we only trigger on the current state, there is a race condition 
   // where we could miss the intermediate state (i.e. assigned).
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-  const updates = changedTickets.map(async ([id, fields, meta]) => {
-    // NOTE that this is a mechanism to easily allow us to ignore tickets in airtable
+  const updates = changedRecords.map(async ([id, fields, meta]) => {
+    // NOTE that this is a mechanism to easily allow us to ignore records in airtable
     if (meta.ignore) {
       return null;
     }
@@ -466,8 +460,8 @@ async function pollTable(table, statusToCallbacks) {
     );
 
     if (_.some(results, ['status', 'rejected'])) {
-      console.error('Actions failed for ticket', {
-        ticket: fields.ticketID,
+      console.error('Actions failed for record', {
+        record: id,
         reasons: _.map(_.filter(results, ['status', 'rejected']), 'reason'),
       });
       return null;
@@ -477,11 +471,14 @@ async function pollTable(table, statusToCallbacks) {
     // and update its meta field
     const updatedMeta = _.assign(meta, _.reduce(_.map(results, 'value'), _.assign));
     updatedMeta.lastSeenStatus = fields.status || null;
+
     console.log('updatedMeta', updatedMeta);
-    return await updateRecord(table, id, {}, updatedMeta);
+    await updateRecord(table, id, {}, updatedMeta);
+    return null;
   });
 
-  return await Promise.allSettled(updates);
+  await Promise.all(updates);
+  return null;
 }
 
 module.exports = {
@@ -505,13 +502,17 @@ module.exports = {
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
-  volunteers: functions.pubsub.schedule('every 2 minutes').onRun(async () => {
-    try {
-      await checkVolunteers(VOLUNTEER_FORM_TABLE);
-    } catch (exception) {
-      console.error('poll-volunteers: exception', exception);
-    }
-    return null;
+  // TODO
+  // volunteers: functions.pubsub.schedule('every 5 minutes').onRun(async () => {
+  volunteers: functions.pubsub.schedule('* * * * *').onRun(async () => {
+    const STATUS_TO_CALLBACKS = {
+      [null]: [onNewVolunteer],
+      // TODO : figure out if we need to do anything in the `Processed` state
+      // eslint-disable-next-line quote-props
+      'Processed': [],
+    };
+
+    return await pollTable(VOLUNTEER_FORM_TABLE, STATUS_TO_CALLBACKS, true);
   }),
   // Scheduled for 7am and 5pm
   sendDigest: functions.pubsub.schedule('0 7,17 * * *').timeZone('America/New_York').onRun(async () => {

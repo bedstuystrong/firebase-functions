@@ -1,4 +1,7 @@
 const functions = require('firebase-functions');
+
+const _ = require('lodash');
+
 const Airtable = require('airtable');
 
 const {
@@ -115,21 +118,24 @@ async function getRecordsWithStatus(table, status) {
   return records.map(normalizeRecords(table));
 }
 
-// Returns only intake tickets whose status has changed since we last checked
+// Returns only intake tickets whose status has changed since we last checked. If `includeNullStatus`
+// is true, we will include records without a status.
+//
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
 // NOTE that this function will only work if the table has a `Status` field
-async function getChangedRecords(table) {
+async function getChangedRecords(table, includeNullStatus = false) {
   // Get all tickets with updated statuses
   const allRecords = await getAllRecords(table);
   return allRecords.filter(
     ([, fields, meta]) => {
-      // NOTE that "Status" is still missing in airtable indicates we should ignore this message
-      if (Object.keys(meta).length === 0 && fields.status) {
+      if (_.isNull(fields.status) && Object.keys(meta).length === 0) {
+        return includeNullStatus;
+      } else if (Object.keys(meta).length === 0) {
+        // This is a non-null status, and we haven't written down our meta yet
         return true;
+      } else {
+        return fields.status !== meta.lastSeenStatus;
       }
-
-      // eslint-disable-next-line eqeqeq
-      return fields.status != meta.lastSeenStatus;
     }
   );
 }
@@ -215,7 +221,6 @@ module.exports = {
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
-  getVolunteersUnProcessed: getVolunteersUnProcessed,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
 };
