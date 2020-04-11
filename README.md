@@ -7,14 +7,6 @@ This repo name is a misnomer! What we actually have is a -- er -- _monorepo_ com
 - [www.bedstuystrong.com](https://bedstuystrong.com/) (`./public/*`)
 - *Cloud Functions for Slack* (`./functions/*`)
 
-## Prerequisites
-
-- airtable access
-- firebase access (prod and test)
-- github org membership
-- join #tickets (for test functions slack app)
-- join #automation (for... this)
-
 ## Installation
 
 1. Fork repo.
