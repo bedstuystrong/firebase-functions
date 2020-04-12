@@ -292,7 +292,7 @@ async function onNewVolunteer(id, fields) {
     return null;
   }
 
-  const username = (res.user.profile.display_name) ? res.user.profile.display_name : res.user.profile.real_name;
+  const username = res.user.profile.display_name || res.user.profile.real_name;
   if (!username || username === '') {
     console.error(`Didn't get a valid username for: ${fields.email}`, { res: res });
     return null;
@@ -477,8 +477,7 @@ async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
     return null;
   });
 
-  await Promise.all(updates);
-  return null;
+  return await Promise.all(updates);
 }
 
 module.exports = {
