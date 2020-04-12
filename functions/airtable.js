@@ -1,13 +1,17 @@
 const functions = require('firebase-functions');
+
+const _ = require('lodash');
+
 const Airtable = require('airtable');
 
 const {
-  normalize,
-  denormalize,
   INBOUND_SCHEMA,
   INTAKE_SCHEMA,
-  VOLUNTEER_SCHEMA,
+  META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
+  VOLUNTEER_SCHEMA,
+  denormalize,
+  normalize,
 } = require('./schema');
 
 const IS_PROD = functions.config().environment.type === 'prod';
@@ -23,6 +27,7 @@ const INBOUND_TABLE = functions.config().airtable.inbound_table;
 const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
+const META_TABLE = functions.config().airtable.meta_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
@@ -113,21 +118,24 @@ async function getRecordsWithStatus(table, status) {
   return records.map(normalizeRecords(table));
 }
 
-// Returns only intake tickets whose status has changed since we last checked
+// Returns only intake tickets whose status has changed since we last checked. If `includeNullStatus`
+// is true, we will include records without a status.
+//
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
 // NOTE that this function will only work if the table has a `Status` field
-async function getChangedRecords(table) {
+async function getChangedRecords(table, includeNullStatus = false) {
   // Get all tickets with updated statuses
   const allRecords = await getAllRecords(table);
   return allRecords.filter(
     ([, fields, meta]) => {
-      // NOTE that "Status" is still missing in airtable indicates we should ignore this message
-      if (Object.keys(meta).length === 0 && fields.status) {
+      if (_.isNull(fields.status) && Object.keys(meta).length === 0) {
+        return includeNullStatus;
+      } else if (Object.keys(meta).length === 0) {
+        // This is a non-null status, and we haven't written down our meta yet
         return true;
+      } else {
+        return fields.status !== meta.lastSeenStatus;
       }
-
-      // eslint-disable-next-line eqeqeq
-      return fields.status != meta.lastSeenStatus;
     }
   );
 }
@@ -168,19 +176,51 @@ function getTicketDueDate(fields) {
   return Math.round((dateCreated - Date.now()) / (1000 * 60 * 60 * 24) + daysAllotted);
 }
 
+async function _findMetaRecord(key) {
+  if (!Object.values(META_STORE_KEYS).includes(key)) {
+    throw Error('The provided key is not a valid key in the meta store', { key: key });
+  }
+
+  const query = base(META_TABLE).select({
+    filterByFormula: `{Name} = "${key}"`
+  });
+  const records = (await query.all()).map(normalizeRecords(META_TABLE));
+
+  if (records.length === 0) {
+    throw Error('Did not find a meta entry', { key: key });
+  } else if (records.length > 1) {
+    throw Error('Found duplicate meta entries', { key: key });
+  }
+
+  return records[0];
+}
+
+// Gets a meta object stored in the `_meta` table
+async function getMeta(key) {
+  return (await _findMetaRecord(key))[2];
+}
+
+async function storeMeta(key, data) {
+  return await updateRecord(META_TABLE, (await _findMetaRecord(key))[0], {}, data);
+}
+
 module.exports = {
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
+  META_STORE_KEYS: META_STORE_KEYS,
+  META_TABLE: META_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
   createMessage: createMessage,
   createVoicemail: createVoicemail,
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
+  getMeta: getMeta,
   getPhoneNumberId: getPhoneNumberId,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
+  storeMeta: storeMeta,
   updateRecord: updateRecord,
 };

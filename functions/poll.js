@@ -6,13 +6,17 @@ const _ = require('lodash');
 allSettled.shim();
 
 const {
+  INTAKE_TABLE,
+  META_STORE_KEYS,
+  REIMBURSEMENTS_TABLE,
+  VOLUNTEER_FORM_TABLE,
   getChangedRecords,
+  getMeta,
   getRecordsWithStatus,
   getRecordsWithTicketID,
   getVolunteerSlackID,
+  storeMeta,
   updateRecord,
-  INTAKE_TABLE,
-  REIMBURSEMENTS_TABLE
 } = require('./airtable');
 
 const {
@@ -276,6 +280,37 @@ async function onIntakeCompleted(id, fields, meta) {
   return {};
 }
 
+async function onNewVolunteer(id, fields) {
+  console.log('onNewVolunteer', { id: id, email: fields.email });
+
+  let res;
+  try {
+    res = await bot.users.lookupByEmail({ email: fields.email });
+  } catch (exception) {
+    // TODO FOR #23 MESSAGE A SLACK GROUP WITH ERROR
+    console.error(`checkVolunteers: Error looking up volunteer by email: ${fields.email}`, exception);
+    return null;
+  }
+
+  const username = res.user.profile.display_name || res.user.profile.real_name;
+  if (!username || username === '') {
+    console.error(`Didn't get a valid username for: ${fields.email}`, { res: res });
+    return null;
+  }
+
+  await updateRecord(
+    VOLUNTEER_FORM_TABLE,
+    id,
+    {
+      slackUserID: res.user.id,
+      slackEmail: res.user.profile.email,
+      slackHandleDerived: `@${username}`,
+    },
+  );
+
+  return {};
+}
+
 async function onReimbursementCreated(id, fields) {
   console.log('onReimbursementCreated', { record: id, ticket: fields.ticketID });
 
@@ -308,7 +343,6 @@ async function onReimbursementCreated(id, fields) {
   return {};
 }
 
-// TODO : update this post to reflect ticket status changes
 async function sendDigest() {
   const unassignedTickets = _.filter(
     await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
@@ -317,20 +351,11 @@ async function sendDigest() {
 
   const chan = CHANNEL_IDS.delivery_volunteers;
 
-  let postResponse;
-  if (unassignedTickets.length !== 0) {
-    postResponse = await bot.chat.postMessage({
-      channel: chan,
-      text: '*Delivery Request Summary*',
-      blocks: await getTicketSummaryBlocks(unassignedTickets),
-    });
-  } else {
-    // Just in case this happens ;)
-    postResponse = await bot.chat.postMessage({
-      channel: chan,
-      text: '*Delivery Request Summary*\nNo unassigned tickets! :confetti_ball:',
-    });
-  }
+  const postResponse = await bot.chat.postMessage({
+    channel: chan,
+    text: '*Delivery Request Summary*',
+    blocks: await getTicketSummaryBlocks(unassignedTickets),
+  });
 
   if (postResponse.ok) {
     console.log('sendDigest: Sent daily digest', {
@@ -345,25 +370,80 @@ async function sendDigest() {
     return null;
   }
 
+  const digestPostInfo = await getMeta(META_STORE_KEYS.digestPostInfo);
+
+  try {
+    // Delete the last digest post
+    await bot.chat.delete({
+      channel: chan,
+      ts: digestPostInfo.ts,
+    });
+
+    console.log('sendDigest: Deleted old digest post', {
+      channel: chan,
+      timestamp: postResponse.ts,
+    });
+  } catch (e) {
+    console.error(`Failed to delete stale digest post: ${e}`, {
+      channel: chan,
+      ts: digestPostInfo.ts,
+    });
+  }
+
+  await storeMeta(META_STORE_KEYS.digestPostInfo, { chan: chan, ts: postResponse.ts });
+
   return null;
 }
 
-// Processes all tickets in a table that have a new status
-async function pollTable(table, statusToCallbacks) {
-  const changedTickets = await getChangedRecords(table);
+async function updateDigest() {
+  const digestPostInfo = await getMeta(META_STORE_KEYS.digestPostInfo);
 
-  if (changedTickets.length === 0) {
+  const unassignedTickets = _.filter(
+    await getRecordsWithStatus(INTAKE_TABLE, 'Seeking Volunteer'),
+    ([, , meta]) => !meta.ignore,
+  );
+
+  const updateResponse = await bot.chat.update({
+    channel: digestPostInfo.chan,
+    ts: digestPostInfo.ts,
+    text: '*Delivery Request Summary*',
+    blocks: await getTicketSummaryBlocks(unassignedTickets),
+  });
+
+  if (updateResponse.ok) {
+    console.log('updateDigest: Updated daily digest', {
+      channel: digestPostInfo.chan,
+      timestamp: updateResponse.ts,
+    });
+  } else {
+    console.error('updateDigest: Failed to update daily digest', {
+      channel: digestPostInfo.chan,
+      response: updateResponse,
+    });
+    return null;
+  }
+
+  await storeMeta(META_STORE_KEYS.digestPostInfo, { chan: digestPostInfo.chan, ts: updateResponse.ts });
+
+  return null;
+}
+
+// Processes all records in a table that have a new status
+async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
+  const changedRecords = await getChangedRecords(table, includeNullStatus);
+
+  if (changedRecords.length === 0) {
     return Promise.resolve();
   }
 
-  // TODO : it is possible for us to miss a step in the intake ticket state transitions.
+  // TODO : it is possible for us to miss a step in the state transitions.
   // For example, an intake ticket should go from "Seeking Volunteer" -> "Assigned" -> 
   // "Complete". Since we only trigger on the current state, there is a race condition 
   // where we could miss the intermediate state (i.e. assigned).
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-  const updates = changedTickets.map(async ([id, fields, meta]) => {
-    // NOTE that this is a mechanism to easily allow us to ignore tickets in airtable
+  const updates = changedRecords.map(async ([id, fields, meta]) => {
+    // NOTE that this is a mechanism to easily allow us to ignore records in airtable
     if (meta.ignore) {
       return null;
     }
@@ -380,8 +460,8 @@ async function pollTable(table, statusToCallbacks) {
     );
 
     if (_.some(results, ['status', 'rejected'])) {
-      console.error('Actions failed for ticket', {
-        ticket: fields.ticketID,
+      console.error('Actions failed for record', {
+        record: id,
         reasons: _.map(_.filter(results, ['status', 'rejected']), 'reason'),
       });
       return null;
@@ -391,11 +471,13 @@ async function pollTable(table, statusToCallbacks) {
     // and update its meta field
     const updatedMeta = _.assign(meta, _.reduce(_.map(results, 'value'), _.assign));
     updatedMeta.lastSeenStatus = fields.status || null;
+
     console.log('updatedMeta', updatedMeta);
-    return await updateRecord(table, id, {}, updatedMeta);
+    await updateRecord(table, id, {}, updatedMeta);
+    return null;
   });
 
-  return await Promise.allSettled(updates);
+  return await Promise.all(updates);
 }
 
 module.exports = {
@@ -419,6 +501,18 @@ module.exports = {
 
     return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
   }),
+  // TODO
+  // volunteers: functions.pubsub.schedule('every 5 minutes').onRun(async () => {
+  volunteers: functions.pubsub.schedule('* * * * *').onRun(async () => {
+    const STATUS_TO_CALLBACKS = {
+      [null]: [onNewVolunteer],
+      // TODO : figure out if we need to do anything in the `Processed` state
+      // eslint-disable-next-line quote-props
+      'Processed': [],
+    };
+
+    return await pollTable(VOLUNTEER_FORM_TABLE, STATUS_TO_CALLBACKS, true);
+  }),
   // Scheduled for 7am and 5pm
   sendDigest: functions.pubsub.schedule('0 7,17 * * *').timeZone('America/New_York').onRun(async () => {
     try {
@@ -426,6 +520,17 @@ module.exports = {
       console.log('sendDigest: successfully sent digest');
     } catch (exception) {
       console.error('sendDigest: encountered an error sending digest', exception);
+    }
+    return null;
+  }),
+  // Runs every five minutes, except for the first five minutes of every hour. This is a 
+  // precaution against racing `sendDigest`.
+  updateDigest: functions.pubsub.schedule('5-59/5 * * * *').onRun(async () => {
+    try {
+      await updateDigest();
+      console.log('updateDigest: successfully updated digest');
+    } catch (exception) {
+      console.error('updateDigest: encountered an error updating digest', exception);
     }
     return null;
   }),
