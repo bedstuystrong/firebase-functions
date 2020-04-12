@@ -1,5 +1,5 @@
-const mapKeys = require('lodash/mapKeys');
-const invert = require('lodash/invert');
+const _ = require('lodash');
+
 // Airtable schema mapping
 
 const STATUS = 'Status';
@@ -46,7 +46,12 @@ const REIMBURSEMENT_SCHEMA = {
 };
 
 const VOLUNTEER_SCHEMA = {
+  status: STATUS,
+  email: 'Email Address',
   slackUserID: 'Slack User ID',
+  slackEmail: 'Email Address (from Slack)',
+  slackHandle: 'Slack Handle',
+  slackHandleDerived: 'Slack Handle (Derived)',
 };
 
 const META_SCHEMA = {
@@ -54,10 +59,26 @@ const META_SCHEMA = {
 };
 
 const normalize = (object, schema) => {
-  const invertedSchema = invert(schema);
-  return mapKeys(object, (_value, key) => (invertedSchema[key] || key));
+  const invertedSchema = _.invert(schema);
+  const normalized = _.mapKeys(object, (_value, key) => (invertedSchema[key] || key));
+
+  // NOTE that the record from airtable doesn't include keys with empty fields
+  // Add in `null` values for all the keys in the schema but not in the record
+  return _.assign(
+    _.mapValues(schema, () => null),
+    normalized,
+  );
 };
-const denormalize = (object, schema) => mapKeys(object, (_value, key) => (schema[key] || key));
+
+// TODO : we might not need to remove null keys. Will that allow us to set empty
+// values to cells in airtable?
+const denormalize = (object, schema) => {
+  // Remove null keys and map back to original schema
+  return _.mapKeys(
+    _.pickBy(object, (value) => !_.isNull(value)),
+    (_value, key) => (schema[key] || key)
+  );
+};
 
 module.exports = {
   INBOUND_SCHEMA,
