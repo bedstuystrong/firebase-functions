@@ -16,16 +16,41 @@ const sendgridMiddleware = (req, res, next) => {
   busboy.end(req.rawBody);
 };
 
-const platformRegexes = {
-  venmo: /From: Venmo <venmo@venmo\.com>/,
-  zelle: /USAA Confirmation ID: [\d\n\r]+Zelle ID:/m,
-  paypal: /From: service@paypal\.com <service@paypal\.com>/,
-  googlepay: /From: Google Pay <googlepay-noreply@google\.com>/,
-  cashapp: /From: Cash App <cash@square\.com>/,
+const platforms = {
+  venmo: {
+    from: 'venmo@venmo.com',
+    regex: /From: Venmo <venmo@venmo\.com>/,
+  },
+  zelle: {
+    from: '',
+    regex: /USAA Confirmation ID: [\d\n\r]+Zelle ID:/m,
+  },
+  paypal: {
+    from: 'service@paypal.com',
+    regex: /From: service@paypal\.com <service@paypal\.com>/,
+  },
+  googlepay: {
+    from: 'googlepay-noreply@google.com',
+    regex: /From: Google Pay <googlepay-noreply@google\.com>/,
+  },
+  cashapp: {
+    from: 'cash@square.com',
+    regex: /From: Cash App <cash@square\.com>/
+  },
 };
 
-const detectPaymentPlatform = (emailText) => {
-  return _.findKey(platformRegexes, regex => regex.test(emailText));
+const detectPaymentPlatform = (email, { isAutoForwarded }) => {
+  if (isAutoForwarded) {
+    return _.findKey(platforms, (platform) => {
+      if (platform.from) {
+        return platform.from === email.from;
+      } else {
+        return platform.regex.test(email.text);
+      }
+    });
+  } else {
+    return _.findKey(platforms, platform => platform.regex.test(email.text));
+  }
 };
 
 const extractPaymentDetails = (platform, email) => {
@@ -33,7 +58,6 @@ const extractPaymentDetails = (platform, email) => {
 
   switch (platform) {
   case 'venmo': {
-    console.log('venmo', email.text)
     details.platform = 'Venmo';
     const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) paid you (\$[\d\.,]+)/);
     const toMatches = email.subject.match(/You paid (.+) (\$[\d\.,]+)/);
@@ -45,7 +69,7 @@ const extractPaymentDetails = (platform, email) => {
     } else if (toMatches) {
       details.direction = 'Out';
       details.name = toMatches[1];
-      details.amount = toMatches[2];
+      details.amount = '-' + toMatches[2];
     }
     break;
   }
@@ -61,7 +85,7 @@ const extractPaymentDetails = (platform, email) => {
     } else if (toMatches) {
       details.direction = 'Out';
       details.name = toMatches[2];
-      details.amount = toMatches[1];
+      details.amount = '-' + toMatches[1];
     }
     break;
   }
@@ -78,7 +102,7 @@ const extractPaymentDetails = (platform, email) => {
     } else if (toMatches) {
       details.direction = 'Out';
       details.name = toMatches[2];
-      details.amount = toMatches[1];
+      details.amount = '-' + toMatches[1];
     }
 
     if (noteMatches) {
@@ -99,7 +123,7 @@ const extractPaymentDetails = (platform, email) => {
     } else if (toMatches) {
       details.direction = 'Out';
       details.name = toMatches[1];
-      details.amount = toMatches[2];
+      details.amount = '-' + toMatches[2];
     }
 
     break;
@@ -109,7 +133,7 @@ const extractPaymentDetails = (platform, email) => {
     const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) sent you (\$[\d\.,]+)(?: for (.*))?/);
     const toMatches = email.subject.match(/You sent (\$[\d\.,]+) to (.*)/);
     const toAcceptedMatches = email.subject.match(/(?:Fwd: )?(.*) just accepted the (\$[\d\.,]+) you sent for (.*)/);
-    
+
     if (fromMatches) {
       details.direction = 'In';
       details.name = fromMatches[1];
@@ -117,7 +141,7 @@ const extractPaymentDetails = (platform, email) => {
       details.note = fromMatches[3];
     } else if (toMatches) {
       details.direction = 'Out';
-      details.amount = toMatches[1];
+      details.amount = '-' + toMatches[1];
 
       const split = toMatches[2].split(/ for (.+)/);
       if (split.length > 1) {
@@ -129,7 +153,7 @@ const extractPaymentDetails = (platform, email) => {
     } else if (toAcceptedMatches) {
       details.direction = 'Out';
       details.name = toAcceptedMatches[1];
-      details.amount = toAcceptedMatches[2];
+      details.amount = '-' + toAcceptedMatches[2];
       details.note = toAcceptedMatches[3];
     }
 
