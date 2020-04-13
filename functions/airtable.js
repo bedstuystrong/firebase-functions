@@ -10,6 +10,7 @@ const {
   META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
   VOLUNTEER_SCHEMA,
+  FINANCE_TRANSACTIONS_SCHEMA,
   denormalize,
   normalize,
 } = require('./schema');
@@ -29,32 +30,14 @@ const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 const META_TABLE = functions.config().airtable.meta_table;
 
+const FINANCE_TRANSACTIONS_TABLE = functions.config().airtable.finance_transactions_table;
+
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
   [INTAKE_TABLE]: INTAKE_SCHEMA,
   [VOLUNTEER_FORM_TABLE]: VOLUNTEER_SCHEMA,
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_SCHEMA,
 };
-
-function getPhoneNumberId(phoneNumber) {
-  return base(INBOUND_CONTACTS_TABLE).select({
-    maxRecords: 1,
-    filterByFormula: `{phone_number} = "${phoneNumber}"`
-  }).firstPage().then(records => {
-    if (records[0]) {
-      return records;
-    } else {
-      return base(INBOUND_CONTACTS_TABLE).create([
-        {
-          fields: {
-            phone_number: phoneNumber,
-            intake_status: 'Intake Needed'
-          }
-        }
-      ]);
-    }
-  }).then(records => records[0].id);
-}
 
 function createMessage(phoneNumber, message) {
   const fields = denormalize({
@@ -75,14 +58,6 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
     voicemailRecording: recordingUrl,
   }, INBOUND_SCHEMA);
   return base(INBOUND_TABLE).create([{ fields }]);
-}
-
-function parseRecord(record) {
-  return [
-    record.id,
-    normalize(record.fields),
-    record.fields._meta ? JSON.parse(record.fields._meta) : {}
-  ];
 }
 
 function normalizeRecords(table) {
@@ -204,6 +179,30 @@ async function storeMeta(key, data) {
   return await updateRecord(META_TABLE, (await _findMetaRecord(key))[0], {}, data);
 }
 
+async function createFinanceTransaction({ direction, platform, amount, name, note, accountHolder, date }) {
+  const financeBase = airtable.base(functions.config().airtable.finance_base_id);
+
+  const directionID = {
+    In: 'recHqZivpo6j4T6On',
+    Out: 'reckW3l4mK8BCEBsd',
+  }[direction];
+
+  const fields = denormalize({
+    direction: [directionID],
+    platform: platform,
+    amount: amount,
+    name: name,
+    notes: note,
+    accountHolder: accountHolder,
+    date: date,
+  }, FINANCE_TRANSACTIONS_SCHEMA);
+
+  return financeBase(FINANCE_TRANSACTIONS_TABLE).create(
+    [{ fields }],
+    { typecast: true }
+  );
+}
+
 module.exports = {
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
@@ -216,11 +215,11 @@ module.exports = {
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
   getMeta: getMeta,
-  getPhoneNumberId: getPhoneNumberId,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
+  createFinanceTransaction: createFinanceTransaction,
 };

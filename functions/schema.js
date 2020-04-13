@@ -58,6 +58,17 @@ const META_SCHEMA = {
   name: 'Name',
 };
 
+const FINANCE_TRANSACTIONS_SCHEMA = {
+  description: 'Description',
+  name: 'Name',
+  amount: 'Amount',
+  date: 'Date',
+  platform: 'Platform',
+  notes: 'Notes',
+  direction: 'Direction',
+  accountHolder: 'Whose account?',
+};
+
 const normalize = (object, schema) => {
   const invertedSchema = _.invert(schema);
   const normalized = _.mapKeys(object, (_value, key) => (invertedSchema[key] || key));
@@ -89,6 +100,7 @@ module.exports = {
   REIMBURSEMENT_SCHEMA,
   STATUS,
   VOLUNTEER_SCHEMA,
+  FINANCE_TRANSACTIONS_SCHEMA,
   denormalize,
   normalize,
 };

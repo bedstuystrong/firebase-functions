@@ -1,3 +1,3 @@
 exports.inbound = require('./inbound');
-exports.donations = require('./donations');
+exports.finance = require('./finance');
 exports.poll = require('./poll');

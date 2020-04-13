@@ -1,5 +1,6 @@
+/* eslint-disable no-useless-escape */
 const Busboy = require('busboy');
-
+const _ = require('lodash');
 
 const sendgridMiddleware = (req, res, next) => {
   const busboy = new Busboy({ headers: req.headers });
@@ -13,6 +14,18 @@ const sendgridMiddleware = (req, res, next) => {
   });
 
   busboy.end(req.rawBody);
+};
+
+const platformRegexes = {
+  venmo: /From: Venmo <venmo@venmo\.com>/,
+  zelle: /USAA Confirmation ID: [\d\n\r]+Zelle ID:/m,
+  paypal: /From: service@paypal\.com <service@paypal\.com>/,
+  googlepay: /From: Google Pay <googlepay-noreply@google\.com>/,
+  cashapp: /From: Cash App <cash@square\.com>/,
+};
+
+const detectPaymentPlatform = (emailText) => {
+  return _.findKey(platformRegexes, regex => regex.test(emailText));
 };
 
 const extractPaymentDetails = (platform, email) => {
@@ -94,7 +107,8 @@ const extractPaymentDetails = (platform, email) => {
   case 'cashapp': {
     details.platform = 'Cash App';
     const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) sent you (\$[\d\.,]+)(?: for (.*))?/);
-    const toMatches = email.subject.match(/You sent (\$[\d\.,]+) to (.*)(?: for (.*))?/);
+    const toMatches = email.subject.match(/You sent (\$[\d\.,]+) to (.*)/);
+    const toAcceptedMatches = email.subject.match(/(?:Fwd: )?(.*) just accepted the (\$[\d\.,]+) you sent for (.*)/);
     
     if (fromMatches) {
       details.direction = 'In';
@@ -103,9 +117,20 @@ const extractPaymentDetails = (platform, email) => {
       details.note = fromMatches[3];
     } else if (toMatches) {
       details.direction = 'Out';
-      details.name = toMatches[2];
       details.amount = toMatches[1];
-      details.note = fromMatches[3];
+
+      const split = toMatches[2].split(/ for (.+)/);
+      if (split.length > 1) {
+        details.name = split[0];
+        details.note = split[1];
+      } else {
+        details.name = split[0];
+      }
+    } else if (toAcceptedMatches) {
+      details.direction = 'Out';
+      details.name = toAcceptedMatches[1];
+      details.amount = toAcceptedMatches[2];
+      details.note = toAcceptedMatches[3];
     }
 
     break;
@@ -119,5 +144,6 @@ const extractPaymentDetails = (platform, email) => {
 
 module.exports = {
   sendgridMiddleware,
+  detectPaymentPlatform,
   extractPaymentDetails,
 };
