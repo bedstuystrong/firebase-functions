@@ -33,9 +33,6 @@ const NEIGHBORHOOD_CHANNELS = {
   'NE': 'northeast_bedstuy',
   'SW': 'southwest_bedstuy',
   'SE': 'southeast_bedstuy',
-  'Clinton Hill': 'clintonhill',
-  'Crown Heights': 'crownheights',
-  'Brownsville': 'crownheights',
 };
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
