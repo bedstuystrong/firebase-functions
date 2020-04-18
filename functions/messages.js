@@ -174,10 +174,7 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
 
   // Tickets sorted by due date
   const sortedTickets = _.sortBy(
-    _.filter(
-      tickets,
-      ([id, ,]) => idToDueDate[id] <= minDueDate,
-    ),
+    tickets,
     ([id, ,]) => idToDueDate[id],
   );
 
@@ -188,7 +185,10 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
 
   const ticketIDsToInclude = _.slice(
     _.map(
-      sortedTickets,
+      _.filter(
+        sortedTickets,
+        ([id, ,]) => idToDueDate[id] <= minDueDate,
+      ),
       ([id, ,]) => id,
     ),
     0,
