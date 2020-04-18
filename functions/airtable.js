@@ -162,6 +162,13 @@ async function getVolunteerSlackID(volunteerID) {
 
 // Returns the number of days left to complete the ticket
 // TODO : come back and make sure the math here represents what we want
+function getTicketDueIn(fields) {
+  return Math.round(
+    getTicketDueDate(fields).getTime() / (1000 * 60 * 60 * 24)
+  );
+}
+
+// Returns the number of days left to complete the ticket
 function getTicketDueDate(fields) {
   const NEED_IMMEDIACY_TO_DAYS = {
     'Before the end of the day': 1,
@@ -173,7 +180,9 @@ function getTicketDueDate(fields) {
   const dateCreated = new Date(fields.dateCreated);
   const daysAllotted = NEED_IMMEDIACY_TO_DAYS[fields.timeline];
 
-  return Math.round((dateCreated - Date.now()) / (1000 * 60 * 60 * 24) + daysAllotted);
+  return new Date(
+    dateCreated.getTime() + daysAllotted * (1000 * 60 * 60 * 24)
+  );
 }
 
 async function _findMetaRecord(key) {
@@ -219,6 +228,7 @@ module.exports = {
   getPhoneNumberId: getPhoneNumberId,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
+  getTicketDueIn: getTicketDueIn,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
   storeMeta: storeMeta,

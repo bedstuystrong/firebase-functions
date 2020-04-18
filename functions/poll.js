@@ -14,6 +14,7 @@ const {
   getMeta,
   getRecordsWithStatus,
   getRecordsWithTicketID,
+  getTicketDueDate,
   getVolunteerSlackID,
   storeMeta,
   updateRecord,
@@ -29,10 +30,10 @@ const {
 const bot = new Slack({ token: functions.config().slack.token });
 
 const NEIGHBORHOOD_CHANNELS = {
-  'NW': 'northwest_bedstuy',
-  'NE': 'northeast_bedstuy',
-  'SW': 'southwest_bedstuy',
-  'SE': 'southeast_bedstuy',
+  NW: 'northwest_bedstuy',
+  NE: 'northeast_bedstuy',
+  SW: 'southwest_bedstuy',
+  SE: 'southeast_bedstuy',
 };
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
@@ -158,10 +159,10 @@ async function onIntakeReady(id, fields, meta) {
     INTAKE_TABLE,
     id,
     {
-      'Slack Post Link': postLinkResponse.permalink,
-      'Slack Post Thread Link': detailsLinkResponse.permalink,
+      slackPostLink: postLinkResponse.permalink,
+      slackPostThreadLink: detailsLinkResponse.permalink,
+      dueDate: getTicketDueDate(fields).toISOString(),
     },
-    meta
   );
 
   // TODO : the post to #delivery_volunteers if it is urgent
@@ -511,7 +512,7 @@ module.exports = {
     return await pollTable(VOLUNTEER_FORM_TABLE, STATUS_TO_CALLBACKS, true);
   }),
   // Scheduled for 7am and 5pm
-  sendDigest: functions.pubsub.schedule('0 7,17 * * *').timeZone('America/New_York').onRun(async () => {
+  sendDigest: functions.pubsub.schedule('0 7,12,17 * * *').timeZone('America/New_York').onRun(async () => {
     try {
       await sendDigest();
       console.log('sendDigest: successfully sent digest');
