@@ -44,7 +44,7 @@ async function onMessageEvent(event) {
 
   // NOTE that we only want to notify #tickets_activity with the first message in a thread
   // NOTE that the first message is always the post itself, and the second is the bot's follow up
-  if (repliesRes.messages[2].ts !== event.ts) {
+  if (repliesRes.messages.length < 3 || repliesRes.messages[2].ts !== event.ts) {
     return;
   }
 
