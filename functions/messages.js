@@ -146,7 +146,7 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: '\nNo unassigned tickets! :confetti_ball:',
+        text: '\nNo unassigned high priority tickets! Y\'all rule!!! :confetti_ball:',
       }
     };
   }
