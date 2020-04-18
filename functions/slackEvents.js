@@ -33,7 +33,7 @@ async function triageEvent(event) {
 async function onMessageEvent(event) {
   console.log('onMessageEvent', { event: event });
 
-  if (event.type !== 'message' || event.channel !== CHANNEL_IDS.tickets_activity || !event.thread_ts) {
+  if (event.type !== 'message' || event.channel !== CHANNEL_IDS.tickets || !event.thread_ts) {
     return;
   }
 
@@ -43,8 +43,8 @@ async function onMessageEvent(event) {
   });
 
   // NOTE that we only want to notify #tickets_activity with the first message in a thread
-  // NOTE that the first message is always the post itself
-  if (repliesRes.messages[1].ts !== event.ts) {
+  // NOTE that the first message is always the post itself, and the second is the bot's follow up
+  if (repliesRes.messages[2].ts !== event.ts) {
     return;
   }
 

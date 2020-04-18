@@ -164,7 +164,7 @@ async function getVolunteerSlackID(volunteerID) {
 // TODO : come back and make sure the math here represents what we want
 function getTicketDueIn(fields) {
   return Math.round(
-    getTicketDueDate(fields).getTime() / (1000 * 60 * 60 * 24)
+    (getTicketDueDate(fields) - Date.now()) / (1000 * 60 * 60 * 24)
   );
 }
 
