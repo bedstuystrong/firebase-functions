@@ -18,7 +18,7 @@ module.exports = {
       console.error('Encountered an unsupported request type', { type: req.body.type });
     }
 
-    res.send();
+    res.sendStatus(200);
   }),
 };
 
@@ -33,7 +33,15 @@ async function triageEvent(event) {
 async function onMessageEvent(event) {
   console.log('onMessageEvent', { event: event });
 
-  if (event.type !== 'message' || event.channel !== CHANNEL_IDS.tickets || !event.thread_ts) {
+  // NOTE that we ignore all messages:
+  // - with subtypes (e.g. `message_changed`)
+  // - that weren't posted in the tickets channel
+  // - or aren't thread replies
+  if (
+    event.subtype ||
+    event.channel !== CHANNEL_IDS.tickets ||
+    !event.thread_ts
+  ) {
     return;
   }
 
