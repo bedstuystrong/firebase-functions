@@ -17,3 +17,8 @@ h1 a {
   color: inherit;
   text-decoration: none;
 }
+
+ul li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}

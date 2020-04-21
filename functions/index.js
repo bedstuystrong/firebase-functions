@@ -1,3 +1,4 @@
 exports.inbound = require('./inbound');
-exports.finance = require('./finance');
 exports.poll = require('./poll');
+exports.finance = require('./finance');
+exports.slackEvents = require('./slackEvents');

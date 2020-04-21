@@ -2,7 +2,7 @@ const functions = require('firebase-functions');
 
 const _ = require('lodash');
 
-const { getTicketDueDate, getVolunteerSlackID } = require('./airtable');
+const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
@@ -46,7 +46,7 @@ async function getIntakePostContent(fields) {
   content += '\n';
 
   content += `*Ticket ID*: ${fields.ticketID}
-*Cross Streets*: ${fields.crossStreets}
+*Nearest Intersection*: ${fields.nearestIntersection}
 *Timeline*: ${fields.timeline}
 
 *Want to help ${fields.requestName}?* Comment on this thread. :point_down:
@@ -146,7 +146,7 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: '\nNo unassigned tickets! :confetti_ball:',
+        text: '\nNo unassigned high priority tickets! Y\'all rule!!! :confetti_ball:',
       }
     };
   }
@@ -168,16 +168,13 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
     ),
     _.map(
       tickets,
-      ([, fields,]) => getTicketDueDate(fields),
+      ([, fields,]) => getTicketDueIn(fields),
     ),
   );
 
   // Tickets sorted by due date
   const sortedTickets = _.sortBy(
-    _.filter(
-      tickets,
-      ([id, ,]) => idToDueDate[id] <= minDueDate,
-    ),
+    tickets,
     ([id, ,]) => idToDueDate[id],
   );
 
@@ -188,7 +185,10 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
 
   const ticketIDsToInclude = _.slice(
     _.map(
-      sortedTickets,
+      _.filter(
+        sortedTickets,
+        ([id, ,]) => idToDueDate[id] <= minDueDate,
+      ),
       ([id, ,]) => id,
     ),
     0,
@@ -234,7 +234,7 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
         urgencyEmoji = ':turtle:';
       }
 
-      let ticketContent = `${urgencyEmoji} *${fields.ticketID}* (${fields.crossStreets}) [household of ${fields.householdSize}]`;
+      let ticketContent = `${urgencyEmoji} *${fields.ticketID}* (${fields.nearestIntersection}) [household of ${fields.householdSize}]`;
 
       // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
       // tickets, and backfilling them ended up being too much work

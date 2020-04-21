@@ -26,7 +26,7 @@ const INTAKE_SCHEMA = {
   requestName: 'Requestor First Name and Last Initial',
   timeline: 'Need immediacy',
   category: 'Need Category',
-  crossStreets: 'Cross Streets',
+  nearestIntersection: 'Nearest Intersection',
   description: 'Task Overview - Posts in Slack',
   language: 'Language',
   items: 'Items / Services Requested - Posts in Slack',
@@ -38,6 +38,7 @@ const INTAKE_SCHEMA = {
   dateCreated: 'Date Created',
   slackPostLink: 'Slack Post Link',
   slackPostThreadLink: 'Slack Post Thread Link',
+  dueDate: 'Due Date',
 };
 
 const REIMBURSEMENT_SCHEMA = {

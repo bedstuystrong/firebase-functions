@@ -52,7 +52,7 @@ module.exports = {
 
   createVoicemailRecordingPrompt: () => {
     const twiml = new VoiceResponse();
-    twiml.play('https://firebasestorage.googleapis.com/v0/b/bedstuystrong-automation.appspot.com/o/voicemail_prompts%2Flimited_capacity_english_spanish.mp3?alt=media&token=2c36fa46-7aab-4fc2-a302-f7e34e1039b7');
+    twiml.play('https://firebasestorage.googleapis.com/v0/b/bedstuystrong-automation.appspot.com/o/voicemail_prompts%2Fkarla_english_spanish.mp3?alt=media&token=d62a8759-a81d-47a1-8290-0fad9f5db125');
     twiml.pause({ length: 1 });
     twiml.record({
       action: '/inbound-empty',  // do nothing so that the transcription can happen
