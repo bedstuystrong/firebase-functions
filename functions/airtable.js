@@ -102,6 +102,11 @@ async function getAllRecords(table) {
   return records.map(normalizeRecords(table));
 }
 
+async function getRecord(table, recordID) {
+  const rec = await base(table).find(recordID);
+  return normalizeRecords(table)(rec);
+}
+
 async function getRecordsWithTicketID(table, ticketID) {
   const query = base(table).select({
     filterByFormula: `{Ticket ID} = "${ticketID}"`
@@ -226,6 +231,7 @@ module.exports = {
   getChangedRecords: getChangedRecords,
   getMeta: getMeta,
   getPhoneNumberId: getPhoneNumberId,
+  getRecord: getRecord,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueIn: getTicketDueIn,

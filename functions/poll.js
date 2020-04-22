@@ -12,8 +12,8 @@ const {
   VOLUNTEER_FORM_TABLE,
   getChangedRecords,
   getMeta,
+  getRecord,
   getRecordsWithStatus,
-  getRecordsWithTicketID,
   getTicketDueDate,
   getVolunteerSlackID,
   storeMeta,
@@ -309,32 +309,28 @@ async function onNewVolunteer(id, fields) {
   return {};
 }
 
-async function onReimbursementCreated(id, fields) {
-  console.log('onReimbursementCreated', { record: id, ticket: fields.ticketID });
+async function onNewReimbursement(id, fields) {
+  console.log('onReimbursementCreated', { record: id, ticket: fields.ticketID, ticketRecords: fields.ticketRecords });
 
-  // TODO : error handling
-  const intakeRecords = await getRecordsWithTicketID(INTAKE_TABLE, fields.ticketID);
+  let intakeTicketIDs = [];
 
-  if (intakeRecords.length > 1) {
-    console.error('onReimbursementCreated: Multiple intake records exist for ticket', {
-      record: id,
-      ticket: fields.ticketID,
-    });
-  } else if (intakeRecords.length === 0) {
-    console.error('onReimbursementCreated: No intake records exist for ticket', {
-      record: id,
-      ticket: fields.ticketID,
-    });
-  } else {
+  for (const recordID of fields.ticketRecords) {
+    const [intakeID, intakeFields, intakeMeta] = await getRecord(INTAKE_TABLE, recordID);
+
     // Close the intake ticket
     // NOTE that this will trigger the intake ticket on complete function
-    const [intakeID, , intakeMeta] = intakeRecords[0];
     await updateRecord(INTAKE_TABLE, intakeID, { status: 'Complete' }, intakeMeta);
 
     console.log('onReimbursementCreated: Completed intake ticket', {
-      ticket: fields.ticketID,
+      ticket: intakeFields.ticketID,
     });
+
+    intakeTicketIDs.push(intakeFields.ticketID);
   }
+
+  // NOTE that we update the record to `New` that we have processed it
+  // TODO : get rid of `ticketID`
+  await updateRecord(REIMBURSEMENTS_TABLE, id, { ticketID: _.join(intakeTicketIDs), status: 'New' });
 
   // TODO: send reimbursement message
 
@@ -492,12 +488,13 @@ module.exports = {
   }),
   reimbursements: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
-      'New': [onReimbursementCreated],
+      [null]: [onNewReimbursement],
+      'New': [],
       'In Progress': [],
       'Complete': [],
     };
 
-    return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS);
+    return await pollTable(REIMBURSEMENTS_TABLE, STATUS_TO_CALLBACKS, true);
   }),
   // TODO
   // volunteers: functions.pubsub.schedule('every 5 minutes').onRun(async () => {

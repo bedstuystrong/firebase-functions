@@ -43,7 +43,9 @@ const INTAKE_SCHEMA = {
 
 const REIMBURSEMENT_SCHEMA = {
   status: STATUS,
+  // XXX : 'Ticket ID' is being deprecated, use 'Ticket Records'
   ticketID: 'Ticket ID',
+  ticketRecords: 'Ticket Records',
 };
 
 const VOLUNTEER_SCHEMA = {
