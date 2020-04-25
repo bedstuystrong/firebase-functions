@@ -23,7 +23,6 @@ const airtable = new Airtable({
 
 const base = airtable.base(functions.config().airtable.base_id);
 
-const INBOUND_CONTACTS_TABLE = null; // functions.config().airtable.inbound_contacts_table;
 const INBOUND_TABLE = functions.config().airtable.inbound_table;
 const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
@@ -75,6 +74,11 @@ function normalizeRecords(table) {
 async function getAllRecords(table) {
   const records = await base(table).select().all();
   return records.map(normalizeRecords(table));
+}
+
+async function getRecord(table, recordID) {
+  const record = await base(table).find(recordID);
+  return normalizeRecords(table)(record);
 }
 
 async function getRecordsWithTicketID(table, ticketID) {
@@ -222,6 +226,7 @@ module.exports = {
   createMessage: createMessage,
   createVoicemail: createVoicemail,
   getAllRecords: getAllRecords,
+  getRecord: getRecord,
   getChangedRecords: getChangedRecords,
   getMeta: getMeta,
   getRecordsWithStatus: getRecordsWithStatus,

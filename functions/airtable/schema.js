@@ -15,6 +15,7 @@ const INBOUND_SCHEMA = {
   phoneNumber: 'Phone Number',
   message: 'Message',
   voicemailRecording: 'Voicemail Recording',
+  intakeVolunteer: 'Intake Volunteer',
 };
 
 const INTAKE_SCHEMA = {
@@ -53,6 +54,7 @@ const VOLUNTEER_SCHEMA = {
   slackEmail: 'Email Address (from Slack)',
   slackHandle: 'Slack Handle',
   slackHandleDerived: 'Slack Handle (Derived)',
+  phoneNumber: 'Phone Number',
 };
 
 const META_SCHEMA = {
