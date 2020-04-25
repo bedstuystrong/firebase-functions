@@ -6,10 +6,14 @@ const {
   createEmptyMessageResponse,
   createEmptyVoiceResponse,
   createVoicemailRecordingPrompt,
+  requestConnectCall,
 } = require('./twilio');
 const {
   createMessage,
   createVoicemail,
+  getRecord,
+  INBOUND_TABLE,
+  VOLUNTEER_FORM_TABLE,
 } = require('./airtable');
 
 
@@ -56,6 +60,24 @@ module.exports = {
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
     });
+  }),
+
+  callback: functions.https.onRequest(async (req, res) => {
+    const inboundRecordID = req.query.record;
+
+    const [, inboundFields,] = await getRecord(INBOUND_TABLE, inboundRecordID);
+    if (!inboundFields.intakeVolunteer) {
+      res.status(400).send(`No volunteer associated with record ${inboundRecordID}`);
+    }
+
+    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, inboundFields.intakeVolunteer);
+    
+    const inboundPhoneNumber = parsePhoneNumberFromString(inboundFields.phoneNumber, 'US').format('E.164');
+    const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerFields.phoneNumber, 'US').format('E.164');
+
+    await requestConnectCall(volunteerPhoneNumber, inboundPhoneNumber);
+
+    res.status(200).send(`You'll get a call from Bed-Stuy Strong shortly connecting you to ${inboundFields.phoneNumber}`);
   }),
 
 };
