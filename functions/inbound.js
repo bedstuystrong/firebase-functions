@@ -75,6 +75,13 @@ module.exports = {
     const inboundPhoneNumber = parsePhoneNumberFromString(inboundFields.phoneNumber, 'US').format('E.164');
     const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerFields.phoneNumber, 'US').format('E.164');
 
+    if (!inboundPhoneNumber || !volunteerPhoneNumber) {
+      console.error('Missing a phone number', {
+        inboundPhoneNumber,
+        volunteerPhoneNumber,
+      });
+    }
+
     await requestConnectCall(volunteerPhoneNumber, inboundPhoneNumber);
 
     res.status(200).send(`You'll get a call from Bed-Stuy Strong shortly connecting you to ${inboundFields.phoneNumber}`);
