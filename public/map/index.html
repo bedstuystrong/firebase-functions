@@ -139,11 +139,13 @@
           const coordinates = e.features[0].geometry.coordinates.slice();
           const string = e.features.map((feature) => {
             const p = feature.properties;
+            const categories = JSON.parse(p.category);
             return `
               ${p.urgencyEmoji} <strong>Ticket ID:</strong> ${p.ticketID} <br />
               ${p.nearestIntersection} <br />
-              Want to claim?
-              <a href="${p.slackPostThreadLink}" target="_blank">Comment in Slack</a>
+              ${categories.join(' and ')} for a household of ${p.householdSize} 
+              ${p.householdSize === 1 ? 'person' : 'people'} <br />
+              <a href="${p.slackPostThreadLink}" target="_blank">See more details in Slack</a>
             `;
           }).join('<hr />');
           new mapboxgl.Popup()
