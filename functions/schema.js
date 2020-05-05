@@ -39,6 +39,8 @@ const INTAKE_SCHEMA = {
   slackPostLink: 'Slack Post Link',
   slackPostThreadLink: 'Slack Post Thread Link',
   dueDate: 'Due Date',
+  daysLeftToComplete: 'Days Left to Complete',
+  priorityGroup: 'Priority Group',
 };
 
 const REIMBURSEMENT_SCHEMA = {

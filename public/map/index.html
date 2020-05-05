@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bed-Stuy Strong: Delivery Request Map</title>
+  <link rel="stylesheet" type="text/css" href="/style.css">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v1.10.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v1.10.0/mapbox-gl.css" rel="stylesheet" />
+  <style type="text/css">
+    .flex {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+    #map {
+      flex: 0 0 75%;
+    }
+  </style>
+</head>
+<body>
+  <div class="flex">
+    <div id="map"></div>
+    <div class="control"></div>
+  </div>
+  <script type="text/javascript">
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY3ViZWdob3N0IiwiYSI6ImhUM1lTdG8ifQ.6fSd_7TFOzGh4EqZJpZ2wQ';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/cubeghost/ck8anu87h0wtv1isd559yocth',
+      center: [-73.935002, 40.6872554],
+      zoom: 13
+    });
+    map.on('load', () => {
+      const unassignedEndpoint = 'http://localhost:5001/bedstuystrong-automation/us-central1/api-unassignedTickets';
+      fetch(unassignedEndpoint).then(response => {
+        if (!response.ok) {
+          throw new Error(response.statusText);
+        }
+        return response.json();
+      }).then(geojson => {
+
+        map.addSource('tickets', {
+          type: 'geojson',
+          data: geojson,
+          cluster: true,
+          clusterMaxZoom: 15, // Max zoom to cluster points on
+          clusterRadius: 25 // Radius of each cluster when clustering points (defaults to 50)
+        });
+
+        const SMALL_CLUSTER = 3;
+        const LARGE_CLUSTER = 6;
+
+        map.addLayer({
+          id: 'clusters',
+          type: 'circle',
+          source: 'tickets',
+          filter: ['has', 'point_count'],
+          paint: {
+            // Use step expressions (https://docs.mapbox.com/mapbox-gl-js/style-spec/#expressions-step)
+            // with three steps to implement three types of circles:
+            //   * Blue, 20px circles when point count is less than 100
+            //   * Yellow, 30px circles when point count is between 100 and 750
+            //   * Pink, 40px circles when point count is greater than or equal to 750
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#51bbd6',
+              SMALL_CLUSTER,
+              '#f1f075',
+              LARGE_CLUSTER,
+              '#f28cb1'
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              20,
+              SMALL_CLUSTER,
+              30,
+              LARGE_CLUSTER,
+              40
+            ]
+          }
+        });
+
+        map.addLayer({
+          id: 'cluster-count',
+          type: 'symbol',
+          source: 'tickets',
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+            'text-size': 12
+          }
+        });
+
+        map.addLayer({
+          id: 'unclustered-point',
+          type: 'circle',
+          source: 'tickets',
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'urgency'],
+              '#e63427',
+              1,
+              '#e88c23',
+              2,
+              '#d0e627'
+            ],
+            'circle-radius': 4,
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff'
+          }
+        });
+
+        // inspect a cluster on click
+        map.on('click', 'clusters', function (e) {
+          var features = map.queryRenderedFeatures(e.point, {
+            layers: ['clusters']
+          });
+          var clusterId = features[0].properties.cluster_id;
+          map.getSource('tickets').getClusterExpansionZoom(
+            clusterId,
+            function (err, zoom) {
+              if (err) return;
+              map.easeTo({
+                center: features[0].geometry.coordinates,
+                zoom: zoom
+              });
+            }
+          );
+        });
+
+        map.on('click', 'unclustered-point', function (e) {
+          const coordinates = e.features[0].geometry.coordinates.slice();
+          const string = e.features.map((feature) => {
+            const p = feature.properties;
+            return `
+              ${p.urgencyEmoji} <strong>Ticket ID:</strong> ${p.ticketID} <br />
+              ${p.nearestIntersection} <br />
+              Want to claim?
+              <a href="${p.slackPostThreadLink}" target="_blank">Comment in Slack</a>
+            `;
+          }).join('<hr />');
+          new mapboxgl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(string)
+            .addTo(map);
+        });
+
+
+      });
+
+
+      // map.addSource('quadrants', {
+      //   type: 'geojson',
+      //   data: './quadrants.geojson'
+      // });
+      // map.addLayer({
+      //   id: 'quadrants-line',
+      //   type: 'line',
+      //   source: 'quadrants',
+      //   paint: {
+      //     'line-color': ['get', 'stroke'],
+      //     'line-width': ['get', 'stroke-width'],
+      //   }
+      // });
+      // map.addLayer({
+      //   id: 'quadrants-fill',
+      //   type: 'fill',
+      //   source: 'quadrants',
+      //   paint: {
+      //     'fill-color': ['get', 'fill'],
+      //   }
+      // });
+    });
+  </script>
+</body>
+</html>
