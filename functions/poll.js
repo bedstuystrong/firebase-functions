@@ -27,6 +27,10 @@ const {
   getTicketSummaryBlocks,
 } = require('./messages');
 
+const {
+  regenerateAllTables
+} = require('./bigquery');
+
 const bot = new Slack({ token: functions.config().slack.token });
 
 const NEIGHBORHOOD_CHANNELS = {
@@ -431,8 +435,8 @@ async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
   }
 
   // TODO : it is possible for us to miss a step in the state transitions.
-  // For example, an intake ticket should go from "Seeking Volunteer" -> "Assigned" -> 
-  // "Complete". Since we only trigger on the current state, there is a race condition 
+  // For example, an intake ticket should go from 'Seeking Volunteer' -> 'Assigned' -> 
+  // 'Complete'. Since we only trigger on the current state, there is a race condition 
   // where we could miss the intermediate state (i.e. assigned).
   //
   // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
@@ -528,5 +532,17 @@ module.exports = {
       console.error('updateDigest: encountered an error updating digest', exception);
     }
     return null;
+  }),
+  // Regenerates the bigquery tables at midnight every day
+  dumpToBigQuery: functions.runWith(
+    // Set to the maximum timeout and memory usage
+    {
+      timeoutSeconds: 540,
+      memory: '2GB'
+    }
+  ).pubsub.schedule('0 0 * * *').timeZone('America/New_York').onRun(async () => {
+    console.log('Regenerating bigquery tables...');
+    await regenerateAllTables();
+    console.log('Done');
   }),
 };
