@@ -4,6 +4,7 @@ const URL = require('url');
 
 const { MessagingResponse, VoiceResponse } = twilio.twiml;
 
+const client = twilio(functions.config().twilio.sid, functions.config().twilio.auth_token);
 
 module.exports = {
 
@@ -62,6 +63,18 @@ module.exports = {
       transcribeCallback: '/inbound-voicemail',
     });
     return twiml.toString();
+  },
+
+  requestConnectCall: (phoneNumber, connectNumber) => {
+    const twiml = new VoiceResponse();
+
+    twiml.dial(connectNumber);
+
+    return client.calls.create({
+      to: phoneNumber,
+      from: functions.config().twilio.outbound_number,
+      twiml: twiml.toString(),
+    });
   },
 
 };
