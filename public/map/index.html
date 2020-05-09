@@ -15,7 +15,7 @@
       width: 100vw;
     }
     #map {
-      flex: 0 0 75%;
+      flex: 0 0 100%;
     }
   </style>
 </head>
@@ -44,8 +44,9 @@
         map.addSource('tickets', {
           type: 'geojson',
           data: geojson,
+          maxzoom: 19,
           cluster: true,
-          clusterMaxZoom: 15, // Max zoom to cluster points on
+          clusterMaxZoom: 20, // Max zoom to cluster points on
           clusterRadius: 25 // Radius of each cluster when clustering points (defaults to 50)
         });
 
@@ -77,9 +78,9 @@
               ['get', 'point_count'],
               20,
               SMALL_CLUSTER,
-              30,
+              25,
               LARGE_CLUSTER,
-              40
+              30
             ]
           }
         });
@@ -118,42 +119,49 @@
         });
 
         // inspect a cluster on click
-        map.on('click', 'clusters', function (e) {
-          var features = map.queryRenderedFeatures(e.point, {
+        // map.on('click', 'clusters', function (e) {
+        //   var features = map.queryRenderedFeatures(e.point, {
+        //     layers: ['clusters']
+        //   });
+        //   var clusterId = features[0].properties.cluster_id;
+        //   map.getSource('tickets').getClusterExpansionZoom(
+        //     clusterId,
+        //     function (err, zoom) {
+        //       if (err) return;
+        //       map.easeTo({
+        //         center: features[0].geometry.coordinates,
+        //         zoom: zoom
+        //       });
+        //     }
+        //   );
+        // });
+
+        map.on('click', 'clusters', function(e) {
+          var clusterFeatures = map.queryRenderedFeatures(e.point, {
             layers: ['clusters']
           });
-          var clusterId = features[0].properties.cluster_id;
-          map.getSource('tickets').getClusterExpansionZoom(
-            clusterId,
-            function (err, zoom) {
-              if (err) return;
-              map.easeTo({
-                center: features[0].geometry.coordinates,
-                zoom: zoom
-              });
-            }
-          );
+          const clusterID = clusterFeatures[0].properties.cluster_id;
+          const pointCount = clusterFeatures[0].properties.point_count;
+          const clusterSource = map.getSource('tickets');
+          clusterSource.getClusterLeaves(clusterID, pointCount, 0, function (err, features) {
+            console.log({ features })
+            const coordinates = features[0].geometry.coordinates.slice();
+            const string = features.map((feature) => {
+              const p = feature.properties;
+              return `
+                ${p.urgencyEmoji} <strong>Ticket ID:</strong> ${p.ticketID} <br />
+                ${p.nearestIntersection} <br />
+                ${p.category.join(' and ')} for a household of ${p.householdSize} 
+                ${p.householdSize === 1 ? 'person' : 'people'} <br />
+                <a href="${p.slackPostThreadLink}" target="_blank">See more details in Slack</a>
+              `;
+            }).join('<hr />');
+            new mapboxgl.Popup()
+              .setLngLat(coordinates)
+              .setHTML(string)
+              .addTo(map);
+          });
         });
-
-        map.on('click', 'unclustered-point', function (e) {
-          const coordinates = e.features[0].geometry.coordinates.slice();
-          const string = e.features.map((feature) => {
-            const p = feature.properties;
-            const categories = JSON.parse(p.category);
-            return `
-              ${p.urgencyEmoji} <strong>Ticket ID:</strong> ${p.ticketID} <br />
-              ${p.nearestIntersection} <br />
-              ${categories.join(' and ')} for a household of ${p.householdSize} 
-              ${p.householdSize === 1 ? 'person' : 'people'} <br />
-              <a href="${p.slackPostThreadLink}" target="_blank">See more details in Slack</a>
-            `;
-          }).join('<hr />');
-          new mapboxgl.Popup()
-            .setLngLat(coordinates)
-            .setHTML(string)
-            .addTo(map);
-        });
-
 
       });
 
