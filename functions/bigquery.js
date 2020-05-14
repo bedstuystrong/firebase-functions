@@ -60,6 +60,36 @@ const TABLE_TO_TYPES = {
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_TYPES,
 };
 
+// Validates and transforms a value for a bigtable type
+function _validateAndTransform(type, val) {
+  // Validate types and values
+  if (type === 'STRING' || type === 'TIMESTAMP') {
+    // XXX : we automatically comma-join arrays
+    if (_.isArray(val)) {
+      val = _.join(val, ',');
+    } else if (typeof val !== 'string') {
+      throw Error(
+        'Invalid value for field',
+        { table: table, field: fieldName, val: val }
+      );
+    }
+
+    return val;
+  } else if (type === 'INTEGER' || type === 'FLOAT') {
+    if (typeof val !== 'number') {
+      throw Error(
+        'Invalid value for field',
+        { table: table, field: fieldName, val: val }
+      );
+    }
+
+    return val;
+  } else {
+    throw Error('Invalid field for table', { fieldName: fieldName, table: table });
+  }
+}
+
+// Returns a function that converts airtable records to bigtable records
 function _convertRecords(table) {
   return ([id, fields]) => {
     if (!_.has(TABLE_TO_TYPES, table)) {
@@ -80,31 +110,7 @@ function _convertRecords(table) {
               return null;
             }
 
-            // Validate types and values
-            if (type === 'STRING' || type === 'TIMESTAMP') {
-              // XXX : we automatically comma-join arrays
-              if (_.isArray(val)) {
-                val = _.join(val, ',');
-              } else if (typeof val !== 'string') {
-                throw Error(
-                  'Invalid value for field',
-                  { table: table, field: fieldName, val: val }
-                );
-              }
-
-              return val;
-            } else if (type === 'INTEGER' || type === 'FLOAT') {
-              if (typeof val !== 'number') {
-                throw Error(
-                  'Invalid value for field',
-                  { table: table, field: fieldName, val: val }
-                );
-              }
-
-              return val;
-            } else {
-              throw Error('Invalid field for table', { fieldName: fieldName, table: table });
-            }
+            return _validateAndTransform(type, val);
           },
         ),
         (value) => !_.isNull(value),
@@ -140,7 +146,7 @@ async function deleteTable(table) {
 
 async function populateTable(table) {
   // TODO : filter out only the fields we need to populate the bigquery table
-  const allRecords = await getAllRecords(table);  
+  const allRecords = await getAllRecords(table);
 
   console.log(`Writing ${allRecords.length} records to bigquery table...`, { table: table });
 
