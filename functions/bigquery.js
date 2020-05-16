@@ -60,6 +60,13 @@ const TABLE_TO_TYPES = {
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_TYPES,
 };
 
+// Translates airtable names to bigquery table names
+const TABLE_TO_NAME = {
+  [INBOUND_TABLE]: 'inbound',
+  [INTAKE_TABLE]: 'intake',
+  [REIMBURSEMENTS_TABLE]: 'reimbursements',
+};
+
 function _convertRecords(table) {
   return ([id, fields]) => {
     if (!_.has(TABLE_TO_TYPES, table)) {
@@ -115,6 +122,7 @@ function _convertRecords(table) {
 
 async function createTable(table) {
   const types = TABLE_TO_TYPES[table];
+  const name = TABLE_TO_NAME[table];
 
   if (!types) {
     throw Error('Unsupported table', { table: table });
@@ -131,21 +139,21 @@ async function createTable(table) {
   );
 
   // Create a new table in the dataset
-  await bigQueryClient.dataset(OPS_DATASET_ID).createTable(table, { schema: schema });
+  await bigQueryClient.dataset(OPS_DATASET_ID).createTable(name, { schema: schema });
 }
 
 async function deleteTable(table) {
-  await bigQueryClient.dataset(OPS_DATASET_ID).table(table).delete();
+  await bigQueryClient.dataset(OPS_DATASET_ID).table(TABLE_TO_NAME[table]).delete();
 }
 
 async function populateTable(table) {
   // TODO : filter out only the fields we need to populate the bigquery table
   const allRecords = await getAllRecords(table);  
 
-  console.log(`Writing ${allRecords.length} records to bigquery table...`, { table: table });
+  console.log(`Writing ${allRecords.length} records to bigquery table...`, { table: TABLE_TO_NAME[table] });
 
   for (const rec of allRecords) {
-    await bigQueryClient.dataset(OPS_DATASET_ID).table(table).insert(
+    await bigQueryClient.dataset(OPS_DATASET_ID).table(TABLE_TO_NAME[table]).insert(
       _convertRecords(table)(rec)
     );
   }
