@@ -16,6 +16,7 @@ const INBOUND_SCHEMA = {
   message: 'Message',
   voicemailRecording: 'Voicemail Recording',
   intakeVolunteer: 'Intake Volunteer',
+  intakeTime: 'Intake Time',
 };
 
 const INTAKE_SCHEMA = {
@@ -40,6 +41,7 @@ const INTAKE_SCHEMA = {
   slackPostLink: 'Slack Post Link',
   slackPostThreadLink: 'Slack Post Thread Link',
   dueDate: 'Due Date',
+  costCategory: 'cost_category',
 };
 
 const REIMBURSEMENT_SCHEMA = {
@@ -47,6 +49,13 @@ const REIMBURSEMENT_SCHEMA = {
   // XXX : 'Ticket ID' is being deprecated, use 'Ticket Records'
   ticketID: 'Ticket ID',
   ticketRecords: 'Ticket Records',
+  totalCost: 'Total Cost',
+  donation: 'Donation',
+  netReimbursement: 'Net Reimbursement',
+  // TODO : get rid of this nonesense
+  fundMgr: 'FundMGR Reimbursed',
+  dateSubmitted: 'Date / Time Submitted',
+  paymentPlatform: 'Payment Platform',
 };
 
 const VOLUNTEER_SCHEMA = {
