@@ -1,5 +1,8 @@
 const functions = require('firebase-functions');
 
+const fs = require('fs');
+const util = require('util');
+
 const _ = require('lodash');
 
 const { BigQuery } = require('@google-cloud/bigquery');
@@ -99,6 +102,20 @@ function _convertRecords(table) {
                 );
               }
 
+              if (type === 'TIMESTAMP') {
+                const date = new Date(val);
+
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hour = String(date.getHours()).padStart(2, '0');
+                const minute = String(date.getMinutes()).padStart(2, '0');
+                const second = String(date.getSeconds()).padStart(2, '0');
+
+                // NOTE that dates need to be of the format YYYY-MM-DD HH:MM:SS
+                val = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+              }
+
               return val;
             } else if (type === 'INTEGER' || type === 'FLOAT') {
               if (typeof val !== 'number') {
@@ -148,25 +165,35 @@ async function deleteTable(table) {
 
 async function populateTable(table) {
   // TODO : filter out only the fields we need to populate the bigquery table
-  const allRecords = await getAllRecords(table);  
+  const allRecords = await getAllRecords(table);
+  const convertedRecords = _.map(allRecords, _convertRecords(table));
+
+  const name = TABLE_TO_NAME[table];
+  const tmpFilePath = '/tmp/' + name;
 
   console.log(`Writing ${allRecords.length} records to bigquery table...`, { table: TABLE_TO_NAME[table] });
 
-  for (const rec of allRecords) {
-    await bigQueryClient.dataset(OPS_DATASET_ID).table(TABLE_TO_NAME[table]).insert(
-      _convertRecords(table)(rec)
-    );
-  }
+  await util.promisify(fs.writeFile)(
+    tmpFilePath,
+    _.join(_.map(convertedRecords, JSON.stringify), '\n'),
+  );
+
+  await bigQueryClient.dataset(OPS_DATASET_ID).table(name).load(tmpFilePath, { format: 'JSON' });
 }
 
-// Regenerates all bigquery tables: deleting, creating, and populating them
+// Regenerates a bigquery table: deleting, creating, and populating it
+async function regenerateTable(table) {
+  console.log(`Processing table ${TABLE_TO_NAME[table]}...`);
+
+  await deleteTable(table);
+  await createTable(table);
+  await populateTable(table);
+}
+
+// Regenerates all bigquery tables
 async function regenerateAllTables() {
   for (const table of [INBOUND_TABLE, INTAKE_TABLE, REIMBURSEMENTS_TABLE]) {
-    console.log(`Processing table ${table}`);
-
-    await deleteTable(table);
-    await createTable(table);
-    await populateTable(table);
+    await regenerateTable(table);
   }
 }
 
@@ -174,5 +201,6 @@ module.exports = {
   createTable: createTable,
   deleteTable: deleteTable,
   populateTable: populateTable,
+  regenerateTable: regenerateTable,
   regenerateAllTables: regenerateAllTables,
 };

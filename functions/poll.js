@@ -533,16 +533,15 @@ module.exports = {
     }
     return null;
   }),
-  // Regenerates the bigquery tables at midnight every day
+  // Regenerates the bigquery tables every hour
   dumpToBigQuery: functions.runWith(
     // Set to the maximum timeout and memory usage
     {
-      timeoutSeconds: 540,
-      memory: '2GB'
+      timeoutSeconds: 120,
+      memory: '1GB'
     }
-  ).pubsub.schedule('0 0 * * *').timeZone('America/New_York').onRun(async () => {
+  ).pubsub.schedule('0 * * * *').timeZone('America/New_York').onRun(async () => {
     console.log('Regenerating bigquery tables...');
     await regenerateAllTables();
-    console.log('Done');
   }),
 };
