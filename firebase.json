@@ -18,6 +18,17 @@
         "destination": "https://join.slack.com/t/bedstuystrong/shared_invite/zt-cw1qom82-~O8LK_j6F_r86OeSbhoM3w",
         "type": 302
       }
+    ],
+    "headers": [
+      {
+        "source": "/twilio",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors https://flex.twilio.com http://localhost:3000"
+          }
+        ]
+      }
     ]
   },
   "emulators": {

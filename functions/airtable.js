@@ -123,6 +123,14 @@ async function getRecordsWithStatus(table, status) {
   return records.map(normalizeRecords(table));
 }
 
+async function getRecordsWithPhoneNumber(table, phoneNumber) {
+  const query = base(table).select({
+    filterByFormula: `{Phone Number} = "${phoneNumber}"`
+  });
+  const records = await query.all();
+  return records.map(normalizeRecords(table));
+}
+
 // Returns only intake tickets whose status has changed since we last checked. If `includeNullStatus`
 // is true, we will include records without a status.
 //
@@ -234,6 +242,7 @@ module.exports = {
   getRecord: getRecord,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
+  getRecordsWithPhoneNumber: getRecordsWithPhoneNumber,
   getTicketDueIn: getTicketDueIn,
   getTicketDueDate: getTicketDueDate,
   getVolunteerSlackID: getVolunteerSlackID,
