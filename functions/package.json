@@ -21,6 +21,7 @@
     "node": "8"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^4.7.0",
     "airtable": "^0.8.1",
     "busboy": "^0.3.1",
     "firebase-admin": "^8.6.0",

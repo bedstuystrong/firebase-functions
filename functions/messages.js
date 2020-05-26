@@ -16,7 +16,6 @@ const safetyReminder = 'Reminder: Please don’t volunteer for delivery if you h
 /**
  * Get intake post content for a request's status
  */
-// TODO : add household size
 async function getIntakePostContent(fields) {
   const intakeVolunteerSlackID = await getVolunteerSlackID(fields.intakeVolunteer);
 
