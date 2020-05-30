@@ -10,7 +10,7 @@ const { createFinanceTransaction } = require('./airtable');
 module.exports = {
   email: functions.https.onRequest((req, res) => {
     return sendgridMiddleware(req, res, async () => {
-      const email = pick(req.body, ['to', 'from', 'headers', 'subject', 'text']);
+      const email = pick(req.body, ['to', 'from', 'headers', 'subject', 'text', 'html']);
       const parsed = await simpleParser(email.headers);
       const date = parsed.headers.get('date');
       email.to = flow(
@@ -26,10 +26,6 @@ module.exports = {
       }
 
       const IS_AUTO_FORWARDED = email.to === 'fund@bedstuystrong.com';
-
-      if (IS_AUTO_FORWARDED) {
-        console.log({ text: email.text })
-      }
 
       email.from = flow(
         get('value'),

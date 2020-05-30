@@ -91,9 +91,11 @@ const extractPaymentDetails = (platform, email) => {
   }
   case 'paypal': {
     details.platform = 'Paypal';
-    const fromMatches = email.text.match(/(.*) sent you ([\$\d\.,]+)/);
-    const toMatches = email.text.match(/You sent ([\$\d\.,]+) USD to (.*)/);
-    const noteMatches = email.text.match(/\[image: quote\] (.*) \[image: quote\]/);
+    const text = email.html.replace( /(<([^>]+)>)/ig, '');
+    console.log('paypal text', text)
+    const fromMatches = text.match(/(.*) sent you ([\$\d\.,]+)/);
+    const toMatches = text.match(/You sent ([\$\d\.,]+) USD to (.*)/);
+    const noteMatches = text.match(/\[image: quote\] (.*) \[image: quote\]/);
 
     if (fromMatches) {
       details.direction = 'In';
