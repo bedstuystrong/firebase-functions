@@ -131,6 +131,8 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
   return base(INBOUND_TABLE).create([{ fields }]);
 }
 
+// This function retrieves the last non-duplicate ticket for a phone number, which is used for
+// handling multiple inbound messages from the same phone number.
 async function getLastNonDuplicate(phoneNumber) {
   const query = base(INBOUND_TABLE).select({
     filterByFormula: `{${INBOUND_SCHEMA.phoneNumber}} = "${phoneNumber}"`

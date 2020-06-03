@@ -158,7 +158,6 @@ async function onNewInbound(id, fields, ) {
       // This could be a new request
       newStatus = INBOUND_STATUSES.intakeNeeded;
     } else if (lastStatus === INBOUND_STATUSES.outsideBedStuy) {
-      // TODO : check in and see if this is the right thing to do
       newStatus = INBOUND_STATUSES.intakeNeeded;
     } else if (lastStatus === INBOUND_STATUSES.duplicate) {
       throw Error('Should not have gotten a "duplicate" status from "getLastNonDuplicate"');
