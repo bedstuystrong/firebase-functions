@@ -6,12 +6,14 @@ const _ = require('lodash');
 allSettled.shim();
 
 const {
+  INBOUND_TABLE,
   INTAKE_TABLE,
   META_STORE_KEYS,
   REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE,
   getChangedRecords,
   getMeta,
+  getLastNonDuplicate,
   getRecord,
   getRecordsWithStatus,
   getTicketDueDate,
@@ -19,6 +21,10 @@ const {
   storeMeta,
   updateRecord,
 } = require('./airtable');
+
+const {
+  INBOUND_STATUSES
+} = require('./schema');
 
 const {
   getIntakePostContent,
@@ -41,6 +47,184 @@ const NEIGHBORHOOD_CHANNELS = {
 };
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
+
+/* GENERAL */
+
+// Processes all records in a table that have a new status
+async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
+  const changedRecords = await getChangedRecords(table, includeNullStatus);
+
+  if (changedRecords.length === 0) {
+    return Promise.resolve();
+  }
+
+  // TODO : it is possible for us to miss a step in the state transitions.
+  // For example, an intake ticket should go from 'Seeking Volunteer' -> 'Assigned' -> 
+  // 'Complete'. Since we only trigger on the current state, there is a race condition 
+  // where we could miss the intermediate state (i.e. assigned).
+  //
+  // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
+  const updates = changedRecords.map(async ([id, fields, meta]) => {
+    // NOTE that this is a mechanism to easily allow us to ignore records in airtable
+    if (meta.ignore) {
+      return null;
+    }
+
+    const status = fields.status;
+    if (!(status in statusToCallbacks)) {
+      throw new Error(`Record ${id} has unsupported status: ${status}`);
+    }
+
+    const results = await Promise.allSettled(
+      statusToCallbacks[status].map(async (action) => {
+        return await action(id, fields, meta);
+      })
+    );
+
+    if (_.some(results, ['status', 'rejected'])) {
+      console.error('Actions failed for record', {
+        record: id,
+        reasons: _.map(_.filter(results, ['status', 'rejected']), 'reason'),
+      });
+      return null;
+    }
+
+    // Once we have processed all callbacks for a ticket, note that we have seen it,
+    // and update its meta field
+    const updatedMeta = _.assign(meta, _.reduce(_.map(results, 'value'), _.assign));
+    updatedMeta.lastSeenStatus = fields.status || null;
+
+    console.log('updatedMeta', updatedMeta);
+    await updateRecord(table, id, {}, updatedMeta);
+    return null;
+  });
+
+  return await Promise.all(updates);
+}
+
+
+/* INBOUND */
+
+async function onNewInbound(id, fields, ) {
+  console.log('onNewInbound', { id: id, phoneNumber: fields.phoneNumber });
+
+  const lastRecord = await getLastNonDuplicate(fields.phoneNumber);
+
+  let newStatus = null;
+
+  if (_.isNull(lastRecord)) {
+    console.log('Did not find a previous record');
+
+    newStatus = INBOUND_STATUSES.intakeNeeded;
+  } else {
+    const [lastRecordId, lastRecordFields,] = lastRecord;
+    const lastStatus = lastRecordFields.status || lastRecordFields.statusDerived;
+
+    console.log('Found previous record', { id: lastRecord.id, status: lastStatus });
+
+    if (
+      lastStatus === INBOUND_STATUSES.intakeNeeded ||
+      lastStatus === INBOUND_STATUSES.spanishIntakeNeeded ||
+      lastStatus === INBOUND_STATUSES.inProgress
+    ) {
+      // We haven't called them back yet
+      newStatus = INBOUND_STATUSES.duplicate;
+    } else if (lastStatus === INBOUND_STATUSES.intakeComplete) {
+      // TODO : check the ticket for this record to see if it has been completed, if not make this 'Follow Up'
+      newStatus = INBOUND_STATUSES.intakeNeeded;
+    } else if (lastStatus === INBOUND_STATUSES.callBack) {
+      // We are already planning on calling them back
+      newStatus = INBOUND_STATUSES.duplicate;
+    } else if (
+      // TODO : no pickup needs to be phased out
+      lastStatus === INBOUND_STATUSES.noPickup ||
+      lastStatus === INBOUND_STATUSES.phoneTag
+    ) {
+      // Mark the original ticket as call back, and mark this one a duplicate
+      await updateRecord(
+        INBOUND_TABLE,
+        lastRecordId,
+        {
+          statusDerived: INBOUND_STATUSES.callBack,
+        }
+      );
+
+      newStatus = INBOUND_STATUSES.duplicate;
+    } else if (
+      lastStatus === INBOUND_STATUSES.thankYou ||
+      lastStatus === INBOUND_STATUSES.question ||
+      lastStatus === INBOUND_STATUSES.noNeed
+    ) {
+      // This could be a new request
+      newStatus = INBOUND_STATUSES.intakeNeeded;
+    } else if (lastStatus === INBOUND_STATUSES.outsideBedStuy) {
+      // TODO : check in and see if this is the right thing to do
+      newStatus = INBOUND_STATUSES.intakeNeeded;
+    } else if (lastStatus === INBOUND_STATUSES.duplicate) {
+      throw Error('Should not have gotten a "duplicate" status from "getLastNonDuplicate"');
+    } else {
+      console.error('Encountered an invalid status', { status: lastStatus });
+    }
+
+    // Keep track of duplicate tickets in the orginal record
+    if (newStatus === INBOUND_STATUSES.duplicate) {
+      await updateRecord(
+        INBOUND_TABLE,
+        lastRecordId,
+        {
+          otherInbounds: _.uniq(
+            _.concat(
+              lastRecordFields.otherInbounds || [],
+              id,
+            )
+          ),
+        },
+      );
+    }
+  }
+
+  if (_.isNull(newStatus)) {
+    throw Error('Did not get a new status for for ticket');
+  }
+
+  console.log('Setting new status', { newStatus });
+
+  let fieldsDelta = {
+    statusDerived: newStatus,
+  };
+
+  // NOTE that until we fully switch over to automated status, we should manually verify 
+  // the dervied status when it is not "intake needed"
+  if (newStatus === INBOUND_STATUSES.intakeNeeded) {
+    fieldsDelta.status = newStatus;
+  }
+
+  await updateRecord(
+    INBOUND_TABLE,
+    id,
+    fieldsDelta,
+  );
+
+  return {};
+}
+
+// TODO once we transition to fully automated status we can remove this
+async function onIntakeOther(id, fields, ) {
+  if (!_.isNull(fields.status) && fields.status !== fields.statusDerived) {
+    await updateRecord(
+      INBOUND_TABLE,
+      id,
+      {
+        statusDerived: fields.status,
+      },
+    );
+  }
+
+  return {};
+}
+
+
+/* INTAKE */
 
 // TODO : move slack calls to own file
 
@@ -282,6 +466,9 @@ async function onIntakeCompleted(id, fields, meta) {
   return {};
 }
 
+
+/* VOLUNTEER */
+
 async function onNewVolunteer(id, fields) {
   console.log('onNewVolunteer', { id: id, email: fields.email });
 
@@ -313,6 +500,9 @@ async function onNewVolunteer(id, fields) {
   return {};
 }
 
+
+/* REIMBURSEMENT */
+
 async function onNewReimbursement(id, fields) {
   console.log('onReimbursementCreated', { record: id, ticket: fields.ticketID, ticketRecords: fields.ticketRecords });
 
@@ -340,6 +530,9 @@ async function onNewReimbursement(id, fields) {
 
   return {};
 }
+
+
+/* DIGEST */
 
 async function sendDigest() {
   const unassignedTickets = _.filter(
@@ -426,59 +619,36 @@ async function updateDigest() {
   return null;
 }
 
-// Processes all records in a table that have a new status
-async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
-  const changedRecords = await getChangedRecords(table, includeNullStatus);
 
-  if (changedRecords.length === 0) {
-    return Promise.resolve();
-  }
-
-  // TODO : it is possible for us to miss a step in the state transitions.
-  // For example, an intake ticket should go from 'Seeking Volunteer' -> 'Assigned' -> 
-  // 'Complete'. Since we only trigger on the current state, there is a race condition 
-  // where we could miss the intermediate state (i.e. assigned).
-  //
-  // NOTE that the `meta` object is passed to all callbacks, which can make modifications to it.
-  const updates = changedRecords.map(async ([id, fields, meta]) => {
-    // NOTE that this is a mechanism to easily allow us to ignore records in airtable
-    if (meta.ignore) {
-      return null;
-    }
-
-    const status = fields.status;
-    if (!(status in statusToCallbacks)) {
-      throw new Error(`Record ${id} has unsupported status: ${status}`);
-    }
-
-    const results = await Promise.allSettled(
-      statusToCallbacks[status].map(async (action) => {
-        return await action(id, fields, meta);
-      })
-    );
-
-    if (_.some(results, ['status', 'rejected'])) {
-      console.error('Actions failed for record', {
-        record: id,
-        reasons: _.map(_.filter(results, ['status', 'rejected']), 'reason'),
-      });
-      return null;
-    }
-
-    // Once we have processed all callbacks for a ticket, note that we have seen it,
-    // and update its meta field
-    const updatedMeta = _.assign(meta, _.reduce(_.map(results, 'value'), _.assign));
-    updatedMeta.lastSeenStatus = fields.status || null;
-
-    console.log('updatedMeta', updatedMeta);
-    await updateRecord(table, id, {}, updatedMeta);
-    return null;
-  });
-
-  return await Promise.all(updates);
-}
+/* FUNCTIONS */
 
 module.exports = {
+  inbounds: functions.runWith(
+    // Set to the maximum timeout and memory usage
+    {
+      timeoutSeconds: 90,
+      memory: '1GB'
+    }
+  ).pubsub.schedule('every 2 minutes').onRun(async () => {
+    const STATUS_TO_CALLBACKS = {
+      [null]: [onNewInbound],
+      [INBOUND_STATUSES.intakeNeeded]: [onIntakeOther],
+      [INBOUND_STATUSES.inProgress]: [onIntakeOther],
+      [INBOUND_STATUSES.intakeComplete]: [onIntakeOther],
+      // TODO get rid of this
+      [INBOUND_STATUSES.noPickup]: [onIntakeOther],
+      [INBOUND_STATUSES.duplicate]: [onIntakeOther],
+      [INBOUND_STATUSES.outsideBedStuy]: [onIntakeOther],
+      [INBOUND_STATUSES.callBack]: [onIntakeOther],
+      [INBOUND_STATUSES.question]: [onIntakeOther],
+      [INBOUND_STATUSES.thankYou]: [onIntakeOther],
+      [INBOUND_STATUSES.spanishIntakeNeeded]: [onIntakeOther],
+      [INBOUND_STATUSES.noNeed]: [onIntakeOther],
+      [INBOUND_STATUSES.phoneTag]: [onIntakeOther],
+    };
+
+    return await pollTable(INBOUND_TABLE, STATUS_TO_CALLBACKS, true);
+  }),
   // Runs every minute
   intakes: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
