@@ -6,6 +6,7 @@ const Airtable = require('airtable');
 
 const {
   INBOUND_SCHEMA,
+  INBOUND_STATUSES,
   INTAKE_SCHEMA,
   META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
@@ -22,7 +23,6 @@ const airtable = new Airtable({
 
 const base = airtable.base(functions.config().airtable.base_id);
 
-const INBOUND_CONTACTS_TABLE = null; // functions.config().airtable.inbound_contacts_table;
 const INBOUND_TABLE = functions.config().airtable.inbound_table;
 const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
@@ -36,54 +36,7 @@ const TABLE_SCHEMAS = {
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_SCHEMA,
 };
 
-function getPhoneNumberId(phoneNumber) {
-  return base(INBOUND_CONTACTS_TABLE).select({
-    maxRecords: 1,
-    filterByFormula: `{phone_number} = "${phoneNumber}"`
-  }).firstPage().then(records => {
-    if (records[0]) {
-      return records;
-    } else {
-      return base(INBOUND_CONTACTS_TABLE).create([
-        {
-          fields: {
-            phone_number: phoneNumber,
-            intake_status: 'Intake Needed'
-          }
-        }
-      ]);
-    }
-  }).then(records => records[0].id);
-}
-
-function createMessage(phoneNumber, message) {
-  const fields = denormalize({
-    status: 'Intake Needed',
-    method: 'Text Message',
-    phoneNumber: phoneNumber,
-    message: message,
-  }, INBOUND_SCHEMA);
-  return base(INBOUND_TABLE).create([{ fields }]);
-}
-
-function createVoicemail(phoneNumber, recordingUrl, message) {
-  const fields = denormalize({
-    status: 'Intake Needed',
-    method: 'Phone Call',
-    phoneNumber: phoneNumber,
-    message: message,
-    voicemailRecording: recordingUrl,
-  }, INBOUND_SCHEMA);
-  return base(INBOUND_TABLE).create([{ fields }]);
-}
-
-function parseRecord(record) {
-  return [
-    record.id,
-    normalize(record.fields),
-    record.fields._meta ? JSON.parse(record.fields._meta) : {}
-  ];
-}
+/* GENERAL */
 
 function normalizeRecords(table) {
   const schema = TABLE_SCHEMAS[table];
@@ -155,6 +108,57 @@ async function updateRecord(table, id, delta, meta) {
   return normalizeRecords(table)(await base(table).update(id, fields));
 }
 
+/* INBOUND */
+
+function createMessage(phoneNumber, message) {
+  // NOTE that we set a `null` status for the record, and let the `onNewInbound` poll function set the status
+  const fields = denormalize({
+    method: 'Text Message',
+    phoneNumber: phoneNumber,
+    message: message,
+  }, INBOUND_SCHEMA);
+  return base(INBOUND_TABLE).create([{ fields }]);
+}
+
+function createVoicemail(phoneNumber, recordingUrl, message) {
+  // NOTE that we set a `null` status for the record, and let the `onNewInbound` poll function set the status
+  const fields = denormalize({
+    method: 'Phone Call',
+    phoneNumber: phoneNumber,
+    message: message,
+    voicemailRecording: recordingUrl,
+  }, INBOUND_SCHEMA);
+  return base(INBOUND_TABLE).create([{ fields }]);
+}
+
+// This function retrieves the last non-duplicate ticket for a phone number, which is used for
+// handling multiple inbound messages from the same phone number.
+async function getLastNonDuplicate(phoneNumber) {
+  const query = base(INBOUND_TABLE).select({
+    filterByFormula: `{${INBOUND_SCHEMA.phoneNumber}} = "${phoneNumber}"`
+  });
+  const records = (await query.all()).map(normalizeRecords(INBOUND_TABLE));
+
+  // NOTE that we return `null` if there were no prior inbound records
+  return _.last(
+    _.filter(
+      _.sortBy(
+        records,
+        ([, fields,]) => {
+          return new Date(fields.dateCreated);
+        }
+      ),
+      ([, fields,]) => {
+        const status = fields.status || fields.statusDerived;
+        return !_.isNull(status) && status !== INBOUND_STATUSES.duplicate;
+      },
+    )
+  ) || null;
+}
+
+
+/* VOLUNTEER */
+
 async function getVolunteerSlackID(volunteerID) {
   // Ensures that all DMs go to the test user
   if (!IS_PROD) {
@@ -164,6 +168,8 @@ async function getVolunteerSlackID(volunteerID) {
   const rec = await base(VOLUNTEER_FORM_TABLE).find(volunteerID);
   return normalize(rec.fields, VOLUNTEER_SCHEMA).slackUserID;
 }
+
+/* INTAKE */
 
 // Returns the number of days left to complete the ticket
 // TODO : come back and make sure the math here represents what we want
@@ -189,6 +195,8 @@ function getTicketDueDate(fields) {
     dateCreated.getTime() + daysAllotted * (1000 * 60 * 60 * 24)
   );
 }
+
+/* META */
 
 async function _findMetaRecord(key) {
   if (!Object.values(META_STORE_KEYS).includes(key)) {
@@ -218,6 +226,8 @@ async function storeMeta(key, data) {
   return await updateRecord(META_TABLE, (await _findMetaRecord(key))[0], {}, data);
 }
 
+/* EXPORT */
+
 module.exports = {
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
@@ -229,13 +239,13 @@ module.exports = {
   createVoicemail: createVoicemail,
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
+  getLastNonDuplicate: getLastNonDuplicate,
   getMeta: getMeta,
-  getPhoneNumberId: getPhoneNumberId,
   getRecord: getRecord,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
-  getTicketDueIn: getTicketDueIn,
   getTicketDueDate: getTicketDueDate,
+  getTicketDueIn: getTicketDueIn,
   getVolunteerSlackID: getVolunteerSlackID,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
