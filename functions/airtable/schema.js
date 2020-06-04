@@ -11,12 +11,14 @@ const META_STORE_KEYS = {
 
 const INBOUND_SCHEMA = {
   status: STATUS,
+  statusDerived: 'Status (Derived)',
   method: 'Method of Contact',
   phoneNumber: 'Phone Number',
   message: 'Message',
   voicemailRecording: 'Voicemail Recording',
   intakeVolunteer: 'Intake Volunteer',
   intakeTime: 'Intake Time',
+  otherInbounds: 'Other Inbounds',
 };
 
 const INTAKE_SCHEMA = {
@@ -83,6 +85,21 @@ const FINANCE_TRANSACTIONS_SCHEMA = {
   accountHolder: 'Whose account?',
 };
 
+const INBOUND_STATUSES = {
+  intakeNeeded: 'Intake Needed',
+  inProgress: 'In Progress',
+  intakeComplete: 'Intake Complete',
+  noPickup: 'No Pickup',
+  duplicate: 'Duplicate',
+  outsideBedStuy: 'Outside Bed-Stuy',
+  callBack: 'Call Back',
+  question: 'Question/Info',
+  thankYou: 'Thank you!',
+  spanishIntakeNeeded: 'Spanish-Intake needed',
+  noNeed: 'No longer needs assistance',
+  phoneTag: 'Phone Tag',
+};
+
 const normalize = (object, schema) => {
   const invertedSchema = _.invert(schema);
   const normalized = _.mapKeys(object, (_value, key) => (invertedSchema[key] || key));
@@ -107,6 +124,7 @@ const denormalize = (object, schema) => {
 
 module.exports = {
   INBOUND_SCHEMA,
+  INBOUND_STATUSES,
   INTAKE_SCHEMA,
   META,
   META_SCHEMA,
