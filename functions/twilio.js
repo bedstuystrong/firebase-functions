@@ -30,9 +30,22 @@ module.exports = {
       url += process.env.FUNCTION_NAME;
     }
 
-    const valid = twilio.validateExpressRequest(req, functions.config().twilio.auth_token, {
-      url: url,
-    });
+    let valid;
+    if (url.indexOf('bodySHA256') > 0) {
+      valid = twilio.validateRequestWithBody(
+        functions.config().twilio.auth_token,
+        req.header('X-Twilio-Signature'),
+        url,
+        JSON.stringify(req.body),
+      );
+    } else {
+      valid = twilio.validateRequest(
+        functions.config().twilio.auth_token,
+        req.header('X-Twilio-Signature'),
+        url,
+        (req.body || {}),
+      );
+    }
 
     if (valid) {
       return next();
