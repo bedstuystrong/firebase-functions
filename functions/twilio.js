@@ -38,7 +38,7 @@ module.exports = {
         functions.config().twilio.auth_token,
         req.header('X-Twilio-Signature'),
         url,
-        JSON.stringify(req.body),
+        req.rawBody,
       );
     } else {
       valid = twilio.validateRequest(
