@@ -44,6 +44,8 @@ const INTAKE_SCHEMA = {
   slackPostThreadLink: 'Slack Post Thread Link',
   dueDate: 'Due Date',
   costCategory: 'cost_category',
+  foodOptions: 'Food Options',
+  otherItems: 'Other Items',
 };
 
 const REIMBURSEMENT_SCHEMA = {

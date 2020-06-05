@@ -59,14 +59,21 @@ async function getIntakePostContent(fields) {
  * Get details to post in intake post's thread
  */
 async function getIntakePostDetails(fields) {
-  return `
+  const itemsDesc = (!_.isNull(fields.items)) ? fields.items : _.join(fields.foodOptions, ', ') + '.';
+
+  let content = `
 *Need*: ${fields.category}
 *Household Size*: ${fields.householdSize || ':question:'}
 *Language*: ${fields.language}
 
 *Description*: ${fields.description}
-*Requested*: ${fields.items}
-`;
+*Requested*: ${itemsDesc}\n`;
+
+  if (!_.isNull(fields.otherItems)) {
+    content += `*Other Items*: ${fields.otherItems}\n`;
+  }
+
+  return content;
 }
 
 /**
@@ -92,6 +99,8 @@ async function getDeliveryDMContent(fields) {
   }
   content += '\n\n';
 
+  const itemsDesc = (!_.isNull(fields.items)) ? fields.items : _.join(fields.foodOptions, ', ') + '.';
+
   content += `*Neighbor*: ${fields.requestName}
 *Address*: ${fields.address}
 *Delivery Notes*: ${fields.deliveryNotes || '_empty_'}
@@ -103,7 +112,11 @@ async function getDeliveryDMContent(fields) {
 *Need*: ${fields.category}
 *Description*: ${fields.description}
 *Household Size*: ${fields.householdSize || '?'}
-*Requested*: ${fields.items}\n`;
+*Requested*: ${itemsDesc}\n`;
+
+  if (!_.isNull(fields.otherItems)) {
+    content += `*Other Items*: ${fields.otherItems}\n`;
+  }
 
   // TODO : this is messy
   if (fields.householdSize) {
