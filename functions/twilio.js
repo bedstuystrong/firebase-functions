@@ -18,21 +18,36 @@ module.exports = {
       return res.status(400).send('No signature header error');
     }
 
+    let pathname = req.originalUrl;
+    if (!process.env.FUNCTIONS_EMULATOR) {
+      pathname = process.env.FUNCTION_NAME + pathname.slice(1);
+    }
+
     let url = URL.format({
       protocol: req.protocol,
       host: req.hostname,
-      pathname: req.originalUrl,
+      pathname: pathname,
     });
     if (req.originalUrl.search(/\?/) >= 0) {
       url = url.replace(/%3F/g, '?');
     }
-    if (!process.env.FUNCTIONS_EMULATOR) {
-      url += process.env.FUNCTION_NAME;
-    }
 
-    const valid = twilio.validateExpressRequest(req, functions.config().twilio.auth_token, {
-      url: url,
-    });
+    let valid;
+    if (url.indexOf('bodySHA256') > 0) {
+      valid = twilio.validateRequestWithBody(
+        functions.config().twilio.auth_token,
+        req.header('X-Twilio-Signature'),
+        url,
+        JSON.stringify(req.body),
+      );
+    } else {
+      valid = twilio.validateRequest(
+        functions.config().twilio.auth_token,
+        req.header('X-Twilio-Signature'),
+        url,
+        (req.body || {}),
+      );
+    }
 
     if (valid) {
       return next();

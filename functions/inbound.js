@@ -42,9 +42,8 @@ module.exports = {
     return middleware(req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const recordingUrl = `${req.body.RecordingUrl}.mp3`;
-      const transcription = req.body.TranscriptionText;
 
-      await createVoicemail(fromNumber, recordingUrl, transcription);
+      await createVoicemail(fromNumber, recordingUrl, '');
 
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
