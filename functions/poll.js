@@ -108,77 +108,87 @@ async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
 async function onNewInbound(id, fields, ) {
   console.log('onNewInbound', { id: id, phoneNumber: fields.phoneNumber });
 
-  const lastRecord = await getLastNonDuplicate(fields.phoneNumber);
+  const UNKNOWN_CALLER_NUMBER = '696687';
 
   let newStatus = null;
 
-  if (_.isNull(lastRecord)) {
-    console.log('Did not find a previous record');
-
+  if (fields.method === 'Email') {
+    // TODO we could do deduping of emails as well, but its just not worth it atm
+    newStatus = INBOUND_STATUSES.intakeNeeded;
+  } else if (fields.phoneNumber === UNKNOWN_CALLER_NUMBER) {
+    // If the caller is unknown, we always need to handle the record individually
     newStatus = INBOUND_STATUSES.intakeNeeded;
   } else {
-    const [lastRecordId, lastRecordFields,] = lastRecord;
-    const lastStatus = lastRecordFields.status || lastRecordFields.statusDerived;
+    const lastRecord = await getLastNonDuplicate(fields.phoneNumber);
 
-    console.log('Found previous record', { id: lastRecord.id, status: lastStatus });
+    if (_.isNull(lastRecord)) {
+      console.log('Did not find a previous record');
 
-    if (
-      lastStatus === INBOUND_STATUSES.intakeNeeded ||
-      lastStatus === INBOUND_STATUSES.spanishIntakeNeeded ||
-      lastStatus === INBOUND_STATUSES.inProgress
-    ) {
-      // We haven't called them back yet
-      newStatus = INBOUND_STATUSES.duplicate;
-    } else if (lastStatus === INBOUND_STATUSES.intakeComplete) {
-      // TODO : check the ticket for this record to see if it has been completed, if not make this 'Follow Up'
       newStatus = INBOUND_STATUSES.intakeNeeded;
-    } else if (lastStatus === INBOUND_STATUSES.callBack) {
-      // We are already planning on calling them back
-      newStatus = INBOUND_STATUSES.duplicate;
-    } else if (
-      // TODO : no pickup needs to be phased out
-      lastStatus === INBOUND_STATUSES.noPickup ||
-      lastStatus === INBOUND_STATUSES.phoneTag
-    ) {
-      // Mark the original ticket as call back, and mark this one a duplicate
-      await updateRecord(
-        INBOUND_TABLE,
-        lastRecordId,
-        {
-          statusDerived: INBOUND_STATUSES.callBack,
-        }
-      );
-
-      newStatus = INBOUND_STATUSES.duplicate;
-    } else if (
-      lastStatus === INBOUND_STATUSES.thankYou ||
-      lastStatus === INBOUND_STATUSES.question ||
-      lastStatus === INBOUND_STATUSES.noNeed
-    ) {
-      // This could be a new request
-      newStatus = INBOUND_STATUSES.intakeNeeded;
-    } else if (lastStatus === INBOUND_STATUSES.outsideBedStuy) {
-      newStatus = INBOUND_STATUSES.intakeNeeded;
-    } else if (lastStatus === INBOUND_STATUSES.duplicate) {
-      throw Error('Should not have gotten a "duplicate" status from "getLastNonDuplicate"');
     } else {
-      console.error('Encountered an invalid status', { status: lastStatus });
-    }
+      const [lastRecordId, lastRecordFields,] = lastRecord;
+      const lastStatus = lastRecordFields.status || lastRecordFields.statusDerived;
 
-    // Keep track of duplicate tickets in the orginal record
-    if (newStatus === INBOUND_STATUSES.duplicate) {
-      await updateRecord(
-        INBOUND_TABLE,
-        lastRecordId,
-        {
-          otherInbounds: _.uniq(
-            _.concat(
-              lastRecordFields.otherInbounds || [],
-              id,
-            )
-          ),
-        },
-      );
+      console.log('Found previous record', { id: lastRecord.id, status: lastStatus });
+
+      if (
+        lastStatus === INBOUND_STATUSES.intakeNeeded ||
+        lastStatus === INBOUND_STATUSES.spanishIntakeNeeded ||
+        lastStatus === INBOUND_STATUSES.inProgress
+      ) {
+        // We haven't called them back yet
+        newStatus = INBOUND_STATUSES.duplicate;
+      } else if (lastStatus === INBOUND_STATUSES.intakeComplete) {
+        // TODO : check the ticket for this record to see if it has been completed, if not make this 'Follow Up'
+        newStatus = INBOUND_STATUSES.intakeNeeded;
+      } else if (lastStatus === INBOUND_STATUSES.callBack) {
+        // We are already planning on calling them back
+        newStatus = INBOUND_STATUSES.duplicate;
+      } else if (
+        // TODO : no pickup needs to be phased out
+        lastStatus === INBOUND_STATUSES.noPickup ||
+        lastStatus === INBOUND_STATUSES.phoneTag
+      ) {
+        // Mark the original ticket as call back, and mark this one a duplicate
+        await updateRecord(
+          INBOUND_TABLE,
+          lastRecordId,
+          {
+            statusDerived: INBOUND_STATUSES.callBack,
+          }
+        );
+
+        newStatus = INBOUND_STATUSES.duplicate;
+      } else if (
+        lastStatus === INBOUND_STATUSES.thankYou ||
+        lastStatus === INBOUND_STATUSES.question ||
+        lastStatus === INBOUND_STATUSES.noNeed
+      ) {
+        // This could be a new request
+        newStatus = INBOUND_STATUSES.intakeNeeded;
+      } else if (lastStatus === INBOUND_STATUSES.outsideBedStuy) {
+        newStatus = INBOUND_STATUSES.intakeNeeded;
+      } else if (lastStatus === INBOUND_STATUSES.duplicate) {
+        throw Error('Should not have gotten a "duplicate" status from "getLastNonDuplicate"');
+      } else {
+        console.error('Encountered an invalid status', { status: lastStatus });
+      }
+
+      // Keep track of duplicate tickets in the orginal record
+      if (newStatus === INBOUND_STATUSES.duplicate) {
+        await updateRecord(
+          INBOUND_TABLE,
+          lastRecordId,
+          {
+            otherInbounds: _.uniq(
+              _.concat(
+                lastRecordFields.otherInbounds || [],
+                id,
+              )
+            ),
+          },
+        );
+      }
     }
   }
 
