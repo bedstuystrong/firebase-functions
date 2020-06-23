@@ -11,7 +11,6 @@ const META_STORE_KEYS = {
 
 const INBOUND_SCHEMA = {
   status: STATUS,
-  statusDerived: 'Status (Derived)',
   method: 'Method of Contact',
   phoneNumber: 'Phone Number',
   message: 'Message',
@@ -80,7 +79,6 @@ const INBOUND_STATUSES = {
   intakeNeeded: 'Intake Needed',
   inProgress: 'In Progress',
   intakeComplete: 'Intake Complete',
-  noPickup: 'No Pickup',
   duplicate: 'Duplicate',
   outsideBedStuy: 'Outside Bed-Stuy',
   callBack: 'Call Back',

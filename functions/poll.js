@@ -127,7 +127,7 @@ async function onNewInbound(id, fields, ) {
       newStatus = INBOUND_STATUSES.intakeNeeded;
     } else {
       const [lastRecordId, lastRecordFields,] = lastRecord;
-      const lastStatus = lastRecordFields.status || lastRecordFields.statusDerived;
+      const lastStatus = lastRecord.status;
 
       console.log('Found previous record', { id: lastRecord.id, status: lastStatus });
 
@@ -145,8 +145,6 @@ async function onNewInbound(id, fields, ) {
         // We are already planning on calling them back
         newStatus = INBOUND_STATUSES.duplicate;
       } else if (
-        // TODO : no pickup needs to be phased out
-        lastStatus === INBOUND_STATUSES.noPickup ||
         lastStatus === INBOUND_STATUSES.phoneTag
       ) {
         // Mark the original ticket as call back, and mark this one a duplicate
@@ -154,7 +152,7 @@ async function onNewInbound(id, fields, ) {
           INBOUND_TABLE,
           lastRecordId,
           {
-            statusDerived: INBOUND_STATUSES.callBack,
+            status: INBOUND_STATUSES.callBack,
           }
         );
 
@@ -198,36 +196,13 @@ async function onNewInbound(id, fields, ) {
 
   console.log('Setting new status', { newStatus });
 
-  let fieldsDelta = {
-    statusDerived: newStatus,
-  };
-
-  // NOTE that until we fully switch over to automated status, we should manually verify 
-  // the dervied status when it is not "intake needed"
-  if (newStatus === INBOUND_STATUSES.intakeNeeded) {
-    fieldsDelta.status = newStatus;
-  }
-
   await updateRecord(
     INBOUND_TABLE,
     id,
-    fieldsDelta,
+    {
+      status: newStatus,
+    },
   );
-
-  return {};
-}
-
-// TODO once we transition to fully automated status we can remove this
-async function onIntakeOther(id, fields, ) {
-  if (!_.isNull(fields.status) && fields.status !== fields.statusDerived) {
-    await updateRecord(
-      INBOUND_TABLE,
-      id,
-      {
-        statusDerived: fields.status,
-      },
-    );
-  }
 
   return {};
 }
@@ -641,19 +616,17 @@ module.exports = {
   ).pubsub.schedule('every 2 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
       [null]: [onNewInbound],
-      [INBOUND_STATUSES.intakeNeeded]: [onIntakeOther],
-      [INBOUND_STATUSES.inProgress]: [onIntakeOther],
-      [INBOUND_STATUSES.intakeComplete]: [onIntakeOther],
-      // TODO get rid of this
-      [INBOUND_STATUSES.noPickup]: [onIntakeOther],
-      [INBOUND_STATUSES.duplicate]: [onIntakeOther],
-      [INBOUND_STATUSES.outsideBedStuy]: [onIntakeOther],
-      [INBOUND_STATUSES.callBack]: [onIntakeOther],
-      [INBOUND_STATUSES.question]: [onIntakeOther],
-      [INBOUND_STATUSES.thankYou]: [onIntakeOther],
-      [INBOUND_STATUSES.spanishIntakeNeeded]: [onIntakeOther],
-      [INBOUND_STATUSES.noNeed]: [onIntakeOther],
-      [INBOUND_STATUSES.phoneTag]: [onIntakeOther],
+      [INBOUND_STATUSES.intakeNeeded]: [],
+      [INBOUND_STATUSES.inProgress]: [],
+      [INBOUND_STATUSES.intakeComplete]: [],
+      [INBOUND_STATUSES.duplicate]: [],
+      [INBOUND_STATUSES.outsideBedStuy]: [],
+      [INBOUND_STATUSES.callBack]: [],
+      [INBOUND_STATUSES.question]: [],
+      [INBOUND_STATUSES.thankYou]: [],
+      [INBOUND_STATUSES.spanishIntakeNeeded]: [],
+      [INBOUND_STATUSES.noNeed]: [],
+      [INBOUND_STATUSES.phoneTag]: [],
     };
 
     return await pollTable(INBOUND_TABLE, STATUS_TO_CALLBACKS, true);

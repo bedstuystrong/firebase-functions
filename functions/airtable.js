@@ -149,8 +149,7 @@ async function getLastNonDuplicate(phoneNumber) {
         }
       ),
       ([, fields,]) => {
-        const status = fields.status || fields.statusDerived;
-        return !_.isNull(status) && status !== INBOUND_STATUSES.duplicate;
+        return !_.isNull(fields.status) && fields.status !== INBOUND_STATUSES.duplicate;
       },
     )
   ) || null;
