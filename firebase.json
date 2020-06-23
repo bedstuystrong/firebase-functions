@@ -14,11 +14,6 @@
     ],
     "redirects": [
       {
-        "source": "/slack",
-        "destination": "https://join.slack.com/t/bedstuystrong/shared_invite/zt-cw1qom82-~O8LK_j6F_r86OeSbhoM3w",
-        "type": 302
-      },
-      {
         "source": "/systems",
         "destination": "https://docs.google.com/document/d/1b9RVSexqztRlLpDPT603UTORNUpkhJXtXq8BPHH_mTw/edit?usp=sharing",
         "type": 302
