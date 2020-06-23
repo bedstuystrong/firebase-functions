@@ -127,9 +127,9 @@ async function onNewInbound(id, fields, ) {
       newStatus = INBOUND_STATUSES.intakeNeeded;
     } else {
       const [lastRecordId, lastRecordFields,] = lastRecord;
-      const lastStatus = lastRecord.status;
+      const lastStatus = lastRecordFields.status;
 
-      console.log('Found previous record', { id: lastRecord.id, status: lastStatus });
+      console.log('Found previous record', { id: lastRecordId, status: lastStatus });
 
       if (
         lastStatus === INBOUND_STATUSES.intakeNeeded ||
