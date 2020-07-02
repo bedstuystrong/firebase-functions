@@ -87,6 +87,7 @@ const INBOUND_STATUSES = {
   spanishIntakeNeeded: 'Spanish-Intake needed',
   noNeed: 'No longer needs assistance',
   phoneTag: 'Phone Tag',
+  outOfService: 'Out of Service/Cannot Reach',
 };
 
 const normalize = (object, schema) => {

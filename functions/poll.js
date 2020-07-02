@@ -145,7 +145,7 @@ async function onNewInbound(id, fields, ) {
         // We are already planning on calling them back
         newStatus = INBOUND_STATUSES.duplicate;
       } else if (
-        lastStatus === INBOUND_STATUSES.phoneTag
+        lastStatus === INBOUND_STATUSES.phoneTag || lastStatus === INBOUND_STATUSES.outOfService
       ) {
         // Mark the original ticket as call back, and mark this one a duplicate
         await updateRecord(
@@ -627,6 +627,7 @@ module.exports = {
       [INBOUND_STATUSES.spanishIntakeNeeded]: [],
       [INBOUND_STATUSES.noNeed]: [],
       [INBOUND_STATUSES.phoneTag]: [],
+      [INBOUND_STATUSES.outOfService]: [],
     };
 
     return await pollTable(INBOUND_TABLE, STATUS_TO_CALLBACKS, true);
