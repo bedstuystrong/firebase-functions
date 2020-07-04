@@ -5,9 +5,11 @@ const _ = require('lodash');
 const Airtable = require('airtable');
 
 const {
+  BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
   INTAKE_SCHEMA,
+  ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA,
   META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
   VOLUNTEER_SCHEMA,
@@ -28,12 +30,16 @@ const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 const META_TABLE = functions.config().airtable.meta_table;
+const ITEMS_BY_HOUSEHOLD_SIZE_TABLE = functions.config().airtable.items_by_household_size_table;
+const BULK_ORDER_TABLE = functions.config().airtable.bulk_order_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
   [INTAKE_TABLE]: INTAKE_SCHEMA,
   [VOLUNTEER_FORM_TABLE]: VOLUNTEER_SCHEMA,
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_SCHEMA,
+  [ITEMS_BY_HOUSEHOLD_SIZE_TABLE]: ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA,
+  [BULK_ORDER_TABLE]: BULK_ORDER_SCHEMA,
 };
 
 /* GENERAL */
@@ -106,6 +112,20 @@ async function updateRecord(table, id, delta, meta) {
   }
 
   return normalizeRecords(table)(await base(table).update(id, fields));
+}
+
+async function createRecord(table, fields, meta) {
+  let denormalizedFields = denormalize(fields, TABLE_SCHEMAS[table]);
+
+  if (meta) {
+    denormalizedFields._meta = JSON.stringify(meta);
+  }
+
+  return normalizeRecords(table)(await base(table).create(denormalizedFields));
+}
+
+async function deleteRecord(table, id) {
+  await base(table).destroy(id);
 }
 
 /* INBOUND */
@@ -228,14 +248,18 @@ async function storeMeta(key, data) {
 /* EXPORT */
 
 module.exports = {
+  BULK_ORDER_TABLE: BULK_ORDER_TABLE,
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
+  ITEMS_BY_HOUSEHOLD_SIZE_TABLE: ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
   META_STORE_KEYS: META_STORE_KEYS,
   META_TABLE: META_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
   createMessage: createMessage,
+  createRecord: createRecord,
   createVoicemail: createVoicemail,
+  deleteRecord: deleteRecord,
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
   getLastNonDuplicate: getLastNonDuplicate,

@@ -75,6 +75,25 @@ const META_SCHEMA = {
   name: 'Name',
 };
 
+const ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA = {
+  item: 'Item',
+  unit: 'Unit',
+  1: '1 Person(s)',
+  2: '2 Person(s)',
+  3: '3 Person(s)',
+  4: '4 Person(s)',
+  5: '5 Person(s)',
+  6: '6 Person(s)',
+  7: '7 Person(s)',
+  8: '8 Person(s)',
+};
+
+const BULK_ORDER_SCHEMA = {
+  item: 'Item',
+  unit: 'Unit',
+  quantity:  'Quantity',
+}
+
 const INBOUND_STATUSES = {
   intakeNeeded: 'Intake Needed',
   inProgress: 'In Progress',
@@ -113,9 +132,11 @@ const denormalize = (object, schema) => {
 };
 
 module.exports = {
+  BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
   INTAKE_SCHEMA,
+  ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA,
   META,
   META_SCHEMA,
   META_STORE_KEYS,
