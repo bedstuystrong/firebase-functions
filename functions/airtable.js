@@ -76,6 +76,55 @@ async function getRecordsWithStatus(table, status) {
   return records.map(normalizeRecords(table));
 }
 
+async function getRecordsWithOptions(table, options) {
+  const query = base(table).select(options);
+  const records = await query.all();
+  return records.map(normalizeRecords(table));
+}
+
+async function getIntakeTicketsWithoutLinks() {
+  return await getRecordsWithOptions(
+    INTAKE_TABLE,
+    {
+      filterByFormula: `AND({Status} = "Seeking Volunteer", 0 = COUNTA({Phone/Text Inbound (For call back!)}))`
+    }
+  )
+}
+
+async function findInboundTicketForIntakeTicket([, fields,]) {
+  const candidates = await getRecordsWithOptions(
+    INBOUND_TABLE,
+    {
+      filterByFormula: `AND({Status} != "Duplicate", {Phone Number} = "${fields.phoneNumber}", {Intake Time} < "${fields.dateCreated}")`
+    }
+  )
+  const candidatesMatchingIntakeVolunteer = _.filter(candidates, ([, candidateFields,]) => (
+    _.intersection(fields.intakeVolunteer, _.flatten(candidateFields.intakeVolunteer)).length > 0
+  ))
+
+  if (candidatesMatchingIntakeVolunteer.length >= 1) {
+    if (candidatesMatchingIntakeVolunteer.length > 1) {
+      console.log('findInboundTicketForIntakeTicket: multiple matching candidates, taking latest for ticket', fields.ticketID)
+    }
+    return _.maxBy(candidatesMatchingIntakeVolunteer, ([, candidateFields,]) => candidateFields.intakeTime)
+  } else if (candidates.length === 1) {
+    console.log('findInboundTicketForIntakeTicket: could not match intake volunteer but only one candidate', fields.ticketID)
+    return candidates[0]
+  } else if (candidates.length > 1) {
+    console.error('findInboundTicketForIntakeTicket: multiple candidates with no matching intake volunteer for ticket', fields.ticketID)
+    candidates.forEach(([, candidateFields,]) => console.log({
+      phoneNumber: candidateFields.phoneNumber,
+      intakeVolunteer: candidateFields.intakeVolunteer,
+      intakeTime: candidateFields.intakeTime,
+      intakeTicket: candidateFields['Intake Ticket']
+    }))
+    return null
+  } else {
+    console.error('findInboundTicketForIntakeTicket: no matching candidates for ticket', fields.ticketID)
+    return null
+  }
+}
+
 // Returns only intake tickets whose status has changed since we last checked. If `includeNullStatus`
 // is true, we will include records without a status.
 //
@@ -236,8 +285,10 @@ module.exports = {
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
   createMessage: createMessage,
   createVoicemail: createVoicemail,
+  findInboundTicketForIntakeTicket: findInboundTicketForIntakeTicket,
   getAllRecords: getAllRecords,
   getChangedRecords: getChangedRecords,
+  getIntakeTicketsWithoutLinks: getIntakeTicketsWithoutLinks,
   getLastNonDuplicate: getLastNonDuplicate,
   getMeta: getMeta,
   getRecord: getRecord,
