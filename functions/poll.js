@@ -414,6 +414,44 @@ async function onIntakeAssigned(id, fields, meta) {
   };
 }
 
+async function onIntakeBulkScheduled(id, fields, meta) {
+  console.log('onIntakeBulkScheduled', { record: id, ticket: fields.ticketID });
+
+  if (!meta.intakePostChan || !meta.intakePostTs) {
+    console.error('onIntakeBulkScheduled: Missing Slack post for ticket', {
+      ticket: fields.ticketID,
+    });
+    return null;
+  }
+
+  const ticketResponse = await bot.chat.update({
+    channel: meta.intakePostChan,
+    ts: meta.intakePostTs,
+    text: await getIntakePostContent(fields),
+  });
+
+  if (ticketResponse.ok) {
+    console.log('onIntakeBulkScheduled: Slack post updated', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error('onIntakeBulkScheduled: Error updating Slack post', {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+      response: ticketResponse,
+    });
+    return null;
+  }
+
+  // TODO : post a comment in the thread saying that the delivery has been claimed
+  return {
+    intakePostTs: ticketResponse.ts,
+  };
+}
+
 async function onIntakeCompleted(id, fields, meta) {
   console.log('onIntakeCompleted', { record: id, ticket: fields.ticketID });
 
@@ -637,6 +675,7 @@ module.exports = {
     const STATUS_TO_CALLBACKS = {
       'Seeking Volunteer': [onIntakeReady],
       'Assigned / In Progress': [onIntakeAssigned],
+      'Bulk Delivery Scheduled': [onIntakeBulkScheduled],
       'Complete': [onIntakeCompleted],
       'Not Bed-Stuy': [],
       'Assistance no longer required': [],

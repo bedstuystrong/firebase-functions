@@ -7,6 +7,7 @@ const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
   'Seeking Volunteer': ':exclamation:',
+  'Bulk Delivery Scheduled': ':package:',
   'Assigned / In Progress': ':woman-biking:',
   'Complete': ':white_check_mark:',
 };
