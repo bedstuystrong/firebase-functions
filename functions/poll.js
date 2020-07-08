@@ -639,7 +639,10 @@ module.exports = {
       'Assigned / In Progress': [onIntakeAssigned],
       'Complete': [onIntakeCompleted],
       'Not Bed-Stuy': [],
-      'Assistance no longer required': [],
+      'Assistance No Longer Required': [],
+      'Cannot Reach / Out of Service': [],
+      'Bulk Delivery Scheduled': [],
+      'Bulk Delivery Confirmed': [],
     };
 
     return await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);
