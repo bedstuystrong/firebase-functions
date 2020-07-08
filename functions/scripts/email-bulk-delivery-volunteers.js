@@ -41,13 +41,13 @@ function renderEmail({ cluster, volunteer }) {
 
   We've assigned you the following tickets: ${_.join(_.map(cluster, 'ticketID'), ', ')}
 
-  This coming Saturday, please come to Brooklyn Packers TODO(address) between 1pm and 3pm to pick up boxes.
+  This coming Saturday, please come to our warehouse at 221 Glenmore Ave, Gate 4 at 1pm, to pick up your deliveries. Since there are perishables in the deliveries, you'll need to deliver them immediately after pickup. 
 
   You'll load your car with boxes for the above ticket IDs, and then deliver them to the addresses below. You may want to plan your route to Brooklyn Packers and then to the delivery locations in advance.
 
-  The people you're delivering to have already confirmed they'll be available from 1pm to 5pm, but you may want to call them on Saturday morning to get any last details like how to contact them when you arrive.
+  The neighbors you're delivering to have confirmed their availability for 1-4pm, but you'll call each of them before you leave the warehouse, to get any last minute delivery details. 
 
-  We recommend printing this email out so you can mark tickets done as you complete them, to fill out the [Completion Form](https://airtable.com/shrvHf4k5lRo0I8F4) at the end. If you cannot complete any of your deliveries, contact us TODO and we'll take the groceries back and donate them elsewhere.
+  If possible, we recommend printing this email out so you can mark tickets done as you complete them, to fill out the [Completion Form](https://airtable.com/shrvHf4k5lRo0I8F4) at the end. If any issues come up during your deliveries, or you are unable to deliver any of the boxes (because someone isn't home) contact Jackson at (410) 402-3236. We'll help you redistribute the food to the community in another way. 
   `
   for (const ticket of cluster) {
     email += `\n**Ticket ID**: ${ticket.ticketID}<br/>`
