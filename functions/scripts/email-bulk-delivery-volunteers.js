@@ -37,7 +37,7 @@ async function getDeliveryVolunteerInfo(cluster, tickets) {
 
 function renderEmail({ cluster, volunteer }) {
   var email = `
-  Thank you for volunteering to deliver groceries to our neighbors!
+  Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy Strong!
 
   We've assigned you the following tickets: ${_.join(_.map(cluster, 'ticketID'), ', ')}
 
