@@ -16,7 +16,6 @@ async function main() {
   const itemToNumRequested = await getBulkOrder(intakeRecords);
 
   const bulkOrderRecords = await getAllRecords(BULK_ORDER_TABLE);
-
   const itemToNumOrdered = _.fromPairs(
     _.map(
       bulkOrderRecords,
