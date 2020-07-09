@@ -63,21 +63,19 @@ async function main() {
 
   const itemToNumRequested = await getBulkOrder(sampledRecords);
 
+  const adjustOrderSize = (numRequested) => {
+    // - Adjust the samples requested with the number of households we are purchasing for
+    const scaledNumRequested = numRequested * (NUM_HOUSEHOLDS / sampledRecords.length);
+    // - Add a buffer so we don't under order
+    const bufferedNumRequested = scaledNumRequested * (1 + BUFFER_RATIO);
+    // - Round to the nearest integer
+    return _.round(bufferedNumRequested, 0);
+  };
+
   const itemAndOrderQuantity = _.map(
     _.toPairs(itemToNumRequested),
     ([item, numRequested]) => {
-      return [
-        item,
-        // - Adjust the sampled requested with the number of households we are purchasing for
-        // - Add a buffer so we don't under order
-        // - Round to the nearest integer
-        _.round(
-          (
-            numRequested * (NUM_HOUSEHOLDS / sampledRecords.length)
-          ) * (1 + BUFFER_RATIO),
-          0,
-        ),
-      ];
+      return [item, adjustOrderSize(numRequested)];
     },
   );
 

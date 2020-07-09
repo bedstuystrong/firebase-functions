@@ -234,25 +234,26 @@ async function getBulkOrder(records) {
 
   const failedToLookup = [];
 
+  const getItemQuantity = (item, householdSize) => {
+    if (!_.has(itemsByHouseholdSize, item)) {
+      failedToLookup.push(item);
+      return 0;
+    }
+    return itemsByHouseholdSize[item][householdSize];
+  };
+
   const itemToNumRequested = _.reduce(
     records,
     (acc, [, fields,]) => {
-      return _.assign(
-        acc,
-        _.fromPairs(
-          _.map(
-            fields.foodOptions,
-            (item) => {
-              if (!_.has(itemsByHouseholdSize, item)) {
-                failedToLookup.push(item);
-                return [item, 0];
-              }
-
-              return [item, _.get(acc, item, 0) + itemsByHouseholdSize[item][fields.householdSize]];
-            },
-          )
+      const order = _.fromPairs(
+        _.map(
+          fields.foodOptions,
+          (item) => {
+            return [item, _.get(acc, item, 0) + getItemQuantity(item, fields.householdSize)];
+          },
         )
       );
+      return _.assign(acc, order);
     },
     {},
   );

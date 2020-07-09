@@ -24,18 +24,16 @@ async function main() {
     )
   );
 
+  const allItems = _.union(_.keys(itemToNumRequested), _.keys(itemToNumOrdered));
+  
+  const getDiffForItem = (item) => {
+    return [item, _.get(itemToNumOrdered, item, 0) - _.get(itemToNumRequested, item, 0)];
+  };
+
   // item => ordered - requested
   const delta = _.fromPairs(
     _.filter(
-      _.map(
-        _.union(
-          _.keys(itemToNumRequested),
-          _.keys(itemToNumOrdered),
-        ),
-        (item) => {
-          return [item, _.get(itemToNumOrdered, item, 0) - _.get(itemToNumRequested, item, 0)];
-        },
-      ),
+      _.map(allItems, getDiffForItem),
       ([, diff]) => { return diff !== 0; },
     )
   );
