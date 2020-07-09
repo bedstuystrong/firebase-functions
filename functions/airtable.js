@@ -215,6 +215,56 @@ function getTicketDueDate(fields) {
   );
 }
 
+/* BULK ORDER */
+
+// Returns a bulk order for the provided intake records.
+//
+// tl;dr:
+// - Get item and household size to unit and quantity mapping from airtable
+// - Aggregate the structured items from the provided intake records
+// - Adjust structured items for household size
+// - Generate item to quanitity mapping
+async function getBulkOrder(records) {
+  const itemsByHouseholdSize = _.fromPairs(
+    _.map(
+      await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
+      ([, fields,]) => { return [fields.item, fields]; },
+    ),
+  );
+
+  const failedToLookup = [];
+
+  const itemToNumRequested = _.reduce(
+    records,
+    (acc, [, fields,]) => {
+      return _.assign(
+        acc,
+        _.fromPairs(
+          _.map(
+            fields.foodOptions,
+            (item) => {
+              if (!_.has(itemsByHouseholdSize, item)) {
+                failedToLookup.push(item);
+                return [item, 0];
+              }
+
+              return [item, _.get(acc, item, 0) + itemsByHouseholdSize[item][fields.householdSize]];
+            },
+          )
+        )
+      );
+    },
+    {},
+  );
+
+  if (failedToLookup.length !== 0) {
+    // throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
+    console.error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
+  }
+
+  return itemToNumRequested;
+}
+
 /* META */
 
 async function _findMetaRecord(key) {
@@ -261,6 +311,7 @@ module.exports = {
   createVoicemail: createVoicemail,
   deleteRecord: deleteRecord,
   getAllRecords: getAllRecords,
+  getBulkOrder: getBulkOrder,
   getChangedRecords: getChangedRecords,
   getLastNonDuplicate: getLastNonDuplicate,
   getMeta: getMeta,
