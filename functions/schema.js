@@ -92,7 +92,7 @@ const BULK_ORDER_SCHEMA = {
   item: 'Item',
   unit: 'Unit',
   quantity:  'Quantity',
-}
+};
 
 const INBOUND_STATUSES = {
   intakeNeeded: 'Intake Needed',

@@ -7,6 +7,7 @@ const {
   createRecord,
   deleteRecord,
   getAllRecords,
+  getBulkOrder,
 } = require('../airtable');
 
 async function main() {
@@ -17,7 +18,7 @@ async function main() {
   // The number of households we are bulk purchasing for
   const NUM_HOUSEHOLDS = 40;
   // How much extra to order just in case!
-  const BUFFER_RATIO = .1;
+  const BUFFER_RATIO = 0.1;
 
   console.log('Generating the order sheet...');
   const allRecords = await getAllRecords(INTAKE_TABLE);
@@ -25,7 +26,7 @@ async function main() {
   const sampledRecords = _.filter(
     allRecords,
     ([, fields,]) => {
-      MILLIS_IN_DAY = 1000 * 60 * 60 * 24;
+      const MILLIS_IN_DAY = 1000 * 60 * 60 * 24;
       const ticketAgeDays = (Date.now() - (new Date(fields.dateCreated)).getTime()) / MILLIS_IN_DAY;
 
       return (
@@ -56,40 +57,11 @@ async function main() {
   const itemsByHouseholdSize = _.fromPairs(
     _.map(
       await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
-      ([, fields,]) => { return [fields.item, fields] },
+      ([, fields,]) => { return [fields.item, fields]; },
     ),
   );
 
-  const failedToLookup = [];
-
-  const itemToNumRequested = _.reduce(
-    sampledRecords,
-    (acc, [, fields,]) => {
-      return _.assign(
-        acc,
-        _.fromPairs(
-          _.map(
-            fields.foodOptions,
-            (item) => {
-              if (!_.has(itemsByHouseholdSize, item)) {
-                // console.error(`Failed to get item by household size entry for: ${item}`);
-                failedToLookup.push(item);
-                return [item, 0];
-              }
-
-              return [item, _.get(acc, item, 0) + itemsByHouseholdSize[item][fields.householdSize]];
-            },
-          )
-        )
-      )
-    },
-    {},
-  );
-
-  if (failedToLookup.length !== 0) {
-    // throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
-    console.error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
-  }
+  const itemToNumRequested = await getBulkOrder(sampledRecords);
 
   const itemAndOrderQuantity = _.map(
     _.toPairs(itemToNumRequested),
@@ -121,7 +93,7 @@ async function main() {
       BULK_ORDER_TABLE,
       {
         item: item,
-        unit: (_.has(itemsByHouseholdSize, item)) ? _.get(itemsByHouseholdSize, item).unit : "?",
+        unit: (_.has(itemsByHouseholdSize, item)) ? _.get(itemsByHouseholdSize, item).unit : '?',
         quantity: numRequested,
       },
     );
