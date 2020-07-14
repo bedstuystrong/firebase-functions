@@ -47,6 +47,8 @@ const INTAKE_SCHEMA = {
   otherItems: 'Other Items',
 };
 
+const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
+
 const REIMBURSEMENT_SCHEMA = {
   status: STATUS,
   // XXX : 'Ticket ID' is being deprecated, use 'Ticket Records'
@@ -113,6 +115,7 @@ const denormalize = (object, schema) => {
 };
 
 module.exports = {
+  BULK_DELIVERY_STATUSES,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
   INTAKE_SCHEMA,

@@ -3,11 +3,13 @@ const functions = require('firebase-functions');
 const _ = require('lodash');
 
 const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
+const { BULK_DELIVERY_STATUSES } = require('./schema');
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
   'Seeking Volunteer': ':exclamation:',
   'Bulk Delivery Scheduled': ':package:',
+  'Bulk Delivery Confirmed': ':package:',
   'Assigned / In Progress': ':woman-biking:',
   'Complete': ':white_check_mark:',
 };
