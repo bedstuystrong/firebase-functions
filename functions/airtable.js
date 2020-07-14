@@ -87,7 +87,9 @@ async function getRecordsWithStatus(table, status) {
 //
 // NOTE that we accomplish this by updating a `_meta` field in the record's airtable entry
 // NOTE that this function will only work if the table has a `Status` field
-async function getChangedRecords(table, includeNullStatus = false) {
+// In addition to `Status`, you can pass the function a map of other
+// fields => metaFieldName to compare.
+async function getChangedRecords(table, includeNullStatus = false, nonStatusFieldsToWatch = {}) {
   // Get all tickets with updated statuses
   const allRecords = await getAllRecords(table);
   return allRecords.filter(
@@ -98,7 +100,14 @@ async function getChangedRecords(table, includeNullStatus = false) {
         // This is a non-null status, and we haven't written down our meta yet
         return true;
       } else {
-        return fields.status !== meta.lastSeenStatus;
+        if (fields.status !== meta.lastSeenStatus) {
+          return true;
+        }
+
+        let unchanged = _.forEach(nonStatusFieldsToWatch, (metaField, field) => {
+          return (_.isEmpty(fields[field]) || fields[field] === meta[metaField] );
+        });
+        return !unchanged;
       }
     }
   );

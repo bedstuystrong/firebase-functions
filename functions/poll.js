@@ -51,8 +51,8 @@ const CHANNEL_IDS = functions.config().slack.channel_to_id;
 /* GENERAL */
 
 // Processes all records in a table that have a new status
-async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
-  const changedRecords = await getChangedRecords(table, includeNullStatus);
+async function pollTable(table, statusToCallbacks, includeNullStatus = false, nonStatusFieldsToWatch = {}) {
+  const changedRecords = await getChangedRecords(table, includeNullStatus, nonStatusFieldsToWatch);
 
   if (changedRecords.length === 0) {
     return Promise.resolve();
@@ -213,6 +213,12 @@ async function onNewInbound(id, fields, ) {
 // TODO : move slack calls to own file
 
 async function onIntakeReady(id, fields, meta) {
+  // deliveryVolunteer or other non-status field changes are
+  // not relevant for this method
+  if (meta.lastSeenStatus === fields.status) {
+    return {};
+  }
+
   console.log('onIntakeReady', { record: id, ticket: fields.ticketID });
 
   // TODO : handle going back from assigned state
@@ -355,6 +361,15 @@ async function onIntakeAssigned(id, fields, meta) {
     return null;
   }
 
+  // If status is unchanged and lastSeenDeliveryVolunteer is not set
+  // assume this is a ticket that just hasn't had lastSeenDeliveryVolunteer backfilled
+  // and update the meta
+  if (fields.status === meta.lastSeenStatus && _.isEmpty(meta.lastSeenDeliveryVolunteer)) {
+    return {
+      lastSeenDeliveryVolunteer: fields.deliveryVolunteer
+    };
+  }
+
   const ticketResponse = await bot.chat.update({
     channel: meta.intakePostChan,
     ts: meta.intakePostTs,
@@ -411,10 +426,17 @@ async function onIntakeAssigned(id, fields, meta) {
   // TODO : post a comment in the thread saying that the delivery has been claimed
   return {
     intakePostTs: ticketResponse.ts,
+    lastSeenDeliveryVolunteer: fields.deliveryVolunteer
   };
 }
 
 async function onIntakeCompleted(id, fields, meta) {
+  // deliveryVolunteer or other non-status field changes are
+  // not relevant for this method
+  if (meta.lastSeenStatus === fields.status) {
+    return {};
+  }
+
   console.log('onIntakeCompleted', { record: id, ticket: fields.ticketID });
 
   // TODO : we could try recovering from this by calling `onNewIntake` manually
@@ -645,7 +667,7 @@ module.exports = {
       'Bulk Delivery Confirmed': [],
     };
 
-    return await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);
+    return await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS, false, { deliveryVolunteer: 'lastSeenDeliveryVolunteer' });
   }),
   reimbursements: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
