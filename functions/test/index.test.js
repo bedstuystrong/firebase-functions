@@ -1,9 +1,10 @@
-const test = require('firebase-functions-test')()
+const functions = require('firebase-functions');
+const test = require('firebase-functions-test')();
 
-const assert = require("assert")
-const mocha = require("mocha")
+const assert = require("assert");
+const mocha = require("mocha");
 
-const GARAGE_CHAN_ID = "C0106GP18UT"
+const GARAGE_CHAN_ID = "C0106GP18UT";
 test.mockConfig(
     {
         "airtable": {
@@ -22,45 +23,48 @@ test.mockConfig(
             "southwest_bedstuy": GARAGE_CHAN_ID,
             "delivery_volunteers": GARAGE_CHAN_ID,
         },
+        "environment": {
+            "type": "test"
+        }
     }
-)
+);
 
-const Slack = require("slack")
-const { getAllIntakeTickets, getChangedIntakeTickets } = require("../airtable")
+const Slack = require("slack");
+const { getAllRecords, getChangedRecords, INTAKE_TABLE } = require("../airtable");
 
-const bot = new Slack({ "token": "<REPLACE>" })
+const bot = new Slack({ "token": functions.config().slack.token });
 
 
-describe("test get all intake tickets", () => {
+describe("test get all intake records", () => {
     it("basic", async () => {
-        const tickets = await getAllIntakeTickets()
-        assert(tickets.length > 0)
-    })
-})
+        const tickets = await getAllRecords(INTAKE_TABLE);
+        assert(tickets.length > 0);
+    });
+});
 
-describe("test get all new tickets", () => {
+describe("test get all new intake tickets", () => {
     it("basic", async () => {
-        const tickets = await getChangedIntakeTickets()
-        console.log(tickets.length)
-    })
-})
+        const tickets = await getChangedRecords(INTAKE_TABLE);
+        console.log(tickets.length);
+    });
+});
 
 describe("test slack", () => {
     it("list channels", async () => {
-        const res = await bot.channels.list()
-        const channels = res.channels
+        const res = await bot.channels.list();
+        const channels = res.channels;
 
         for (const chan of channels) {
             if (chan.name === "garage") {
-                return
+                return;
             }
         }
-    })
+    });
 
     it("send test message", async () => {
         const res = await bot.chat.postMessage({
             "channel": GARAGE_CHAN_ID,
             "text": "HELLO!",
-        })
-    })
-})
+        });
+    });
+});
