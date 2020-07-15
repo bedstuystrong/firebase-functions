@@ -3,7 +3,6 @@ const functions = require('firebase-functions');
 const _ = require('lodash');
 
 const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
-const { BULK_DELIVERY_STATUSES } = require('./schema');
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {

@@ -212,15 +212,38 @@ async function onNewInbound(id, fields, ) {
 
 // TODO : move slack calls to own file
 
+async function updateTicketPost(handler, fields, meta) {
+  const ticketResponse = await bot.chat.update({
+    channel: meta.intakePostChan,
+    ts: meta.intakePostTs,
+    text: await getIntakePostContent(fields),
+  });
+
+  if (ticketResponse.ok) {
+    console.log(`${handler}: Slack post updated`, {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error(`${handler}: Error updating Slack post`, {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+      response: ticketResponse,
+    });
+  }
+  return ticketResponse;
+}
+
 async function onIntakeReady(id, fields, meta) {
   console.log('onIntakeReady', { record: id, ticket: fields.ticketID });
 
-  // TODO : handle going back from assigned state
-
   if (meta.intakePostChan || meta.intakePostTs) {
-    console.error('onIntakeReady: Already processed ticket', {
-      ticket: fields.ticketID,
-    });
+    const ticketResponse = await updateTicketPost('onIntakeReady', fields, meta);
+    if (!ticketResponse.ok) {
+      return null;
+    }
     return {};
   }
 
@@ -355,25 +378,8 @@ async function onIntakeAssigned(id, fields, meta) {
     return null;
   }
 
-  const ticketResponse = await bot.chat.update({
-    channel: meta.intakePostChan,
-    ts: meta.intakePostTs,
-    text: await getIntakePostContent(fields),
-  });
-
-  if (ticketResponse.ok) {
-    console.log('onIntakeAssigned: Slack post updated', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-    });
-  } else {
-    console.error('onIntakeAssigned: Error updating Slack post', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-      response: ticketResponse,
-    });
+  const ticketResponse = await updateTicketPost('onIntakeAssigned', fields, meta);
+  if (!ticketResponse.ok) {
     return null;
   }
 
@@ -424,25 +430,8 @@ async function onIntakeBulkStatuses(id, fields, meta) {
     return null;
   }
 
-  const ticketResponse = await bot.chat.update({
-    channel: meta.intakePostChan,
-    ts: meta.intakePostTs,
-    text: await getIntakePostContent(fields),
-  });
-
-  if (ticketResponse.ok) {
-    console.log('onIntakeBulkStatuses: Slack post updated', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-    });
-  } else {
-    console.error('onIntakeBulkStatuses: Error updating Slack post', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-      response: ticketResponse,
-    });
+  const ticketResponse = await updateTicketPost('onIntakeBulkStatuses', fields, meta);
+  if (!ticketResponse.ok) {
     return null;
   }
 
@@ -463,25 +452,8 @@ async function onIntakeCompleted(id, fields, meta) {
     return null;
   }
 
-  const ticketResponse = await bot.chat.update({
-    channel: meta.intakePostChan,
-    ts: meta.intakePostTs,
-    text: await getIntakePostContent(fields),
-  });
-
-  if (ticketResponse.ok) {
-    console.log('onIntakeCompleted: Slack post updated', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-    });
-  } else {
-    console.error('onIntakeCompleted: Error updating Slack post', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-      response: ticketResponse,
-    });
+  const ticketResponse = await updateTicketPost('onIntakeCompleted', fields, meta);
+  if (!ticketResponse.ok) {
     return null;
   }
 
@@ -681,8 +653,6 @@ module.exports = {
       'Not Bed-Stuy': [],
       'Assistance No Longer Required': [],
       'Cannot Reach / Out of Service': [],
-      'Bulk Delivery Scheduled': [],
-      'Bulk Delivery Confirmed': [],
     };
 
     return await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);

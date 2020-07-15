@@ -5,7 +5,6 @@ const {
   INTAKE_TABLE,
   ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
   createRecord,
-  deleteRecord,
   getAllRecords,
   getBulkOrder,
 } = require('../airtable');
