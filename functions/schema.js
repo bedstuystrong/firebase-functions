@@ -92,6 +92,7 @@ const BULK_ORDER_SCHEMA = {
   item: 'Item',
   unit: 'Unit',
   quantity:  'Quantity',
+  deliveryDate: 'Bulk Delivery Date',
 };
 
 const INBOUND_STATUSES = {
