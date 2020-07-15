@@ -22,12 +22,14 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^4.7.0",
+    "@sendgrid/mail": "^7.2.1",
     "airtable": "^0.8.1",
     "firebase-admin": "^8.6.0",
     "firebase-functions": "^3.3.0",
     "libphonenumber-js": "^1.7.48",
     "lodash": "^4.17.15",
     "promise.allsettled": "^1.0.2",
+    "showdown": "^1.9.1",
     "slack": "^11.0.2",
     "twilio": "^3.41.1"
   },
