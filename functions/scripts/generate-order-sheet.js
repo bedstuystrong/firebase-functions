@@ -11,14 +11,16 @@ const {
 } = require('../airtable');
 
 async function main() {
-  const MAX_HOUSEHOLD_SIZE = 4;
+  const MAX_HOUSEHOLD_SIZE = 6;
   const MAX_AGE_DAYS = 21;
   const MIN_NUM_ITEMS = 5;
 
+  // Date when the bulk deliveries will happen
+  const DELIVERY_DATE = new Date('2020-07-18');
   // The number of households we are bulk purchasing for
-  const NUM_HOUSEHOLDS = 40;
+  const NUM_HOUSEHOLDS = 60;
   // How much extra to order just in case!
-  const BUFFER_RATIO = 0.1;
+  const BUFFER_RATIO = 0.15;
 
   console.log('Generating the order sheet...');
   const allRecords = await getAllRecords(INTAKE_TABLE);
@@ -81,13 +83,7 @@ async function main() {
     },
   );
 
-  // Clear out the old bulk order and add in the new ones
-
-  const oldBulkOrderRecords = await getAllRecords(BULK_ORDER_TABLE);
-  for (const [id, ,] of oldBulkOrderRecords) {
-    await deleteRecord(BULK_ORDER_TABLE, id);
-  }
-
+  // Add the new bulk order
   for (const [item, numRequested] of itemAndOrderQuantity) {
     await createRecord(
       BULK_ORDER_TABLE,
@@ -95,6 +91,7 @@ async function main() {
         item: item,
         unit: (_.has(itemsByHouseholdSize, item)) ? _.get(itemsByHouseholdSize, item).unit : '?',
         quantity: numRequested,
+        deliveryDate: DELIVERY_DATE,
       },
     );
   }
