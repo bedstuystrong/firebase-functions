@@ -11,6 +11,7 @@ const {
 } = require('../airtable');
 
 async function main() {
+  // TODO : make household size a CLI argument
   const MAX_HOUSEHOLD_SIZE = 6;
   const MAX_AGE_DAYS = 21;
   const MIN_NUM_ITEMS = 5;

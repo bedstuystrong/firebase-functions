@@ -78,6 +78,7 @@ const META_SCHEMA = {
 const ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA = {
   item: 'Item',
   unit: 'Unit',
+  category: 'Category',
   1: '1 Person(s)',
   2: '2 Person(s)',
   3: '3 Person(s)',
