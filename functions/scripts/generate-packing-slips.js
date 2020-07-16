@@ -27,32 +27,52 @@ class PackingSlip {
 
     let markdown = `# **${fields.ticketID}**: ${fields.requestName} (${fields.nearestIntersection})\n\n`;
 
-    _.forEach(
-      _.toPairs(
-        _.groupBy(
-          _.toPairs(this.provided),
-          ([item,]) => { return itemToCategory[item]; },
-        )
-      ),
-      ([category, provided]) => {
-        markdown += `### **${category}**:\n`;
-        _.forEach(
-          provided,
-          ([item, numProvided]) => {
-            markdown += `- ${numProvided} ${item}\n`;
-          }
-        );
-        markdown += '\n';
-      },
+    const itemGroups = _.groupBy(
+      _.toPairs(this.provided),
+      ([item,]) => { return _.includes(['Bread', 'Bananas'], item) ? 'Last' : itemToCategory[item]; }
     );
+
+    const categoryOrder = [
+      'Fridge / Frozen',
+      'Produce',
+      'Non-perishable',
+      'Cleaning Bundle',
+      'Last',
+    ];
+
+    const renderTable = (groups, categories) => {
+      const numRows = _.max(_.map(_.toPairs(groups), ([group, items]) => { return items.length; }));
+      markdown += '| ';
+      for (const category of categories) {
+        markdown += ` ${category} |`
+      }
+      markdown += '\n';
+      for (const category of categories) {
+        markdown += ` --- |`
+      }
+      for (var i = 0; i < numRows; i++) {
+        markdown += '\n';
+        for (const category of categories) {
+          const items = groups[category];
+          if (items === undefined || i >= items.length) {
+            markdown += ' &nbsp; |';
+          } else {
+            markdown += ` ${items[i][1]} ${items[i][0]} |`
+          }
+        }
+      }
+      markdown += '\n';      
+    };
+    renderTable(itemGroups, categoryOrder);
 
     if (!_.isNull(fields.otherItems) || !_.isEqual(this.provided, this.requested)) {
       markdown += '\n---\n';
       markdown += '## **Other** (Provided By Bed-Stuy Strong!):\n';
 
-      if (!_.isEqual(this.provided, this.requested)) {
-        markdown += '### Missing:\n';
+      const otherCategories = [];
+      const otherGroups = {};
 
+      if (!_.isEqual(this.provided, this.requested)) {
         const missing = _.filter(
           _.map(
             _.toPairs(this.requested),
@@ -63,17 +83,15 @@ class PackingSlip {
           ([, diff]) => { return diff !== 0; },
         );
 
-        _.forEach(
-          missing,
-          ([item, numMissing]) => {
-            markdown += `- ${numMissing} ${item}\n`;
-          }
-        );
+        otherCategories.push('Missing');
+        otherGroups['Missing'] = missing;
       }
 
       if (!_.isNull(fields.otherItems)) {
-        markdown +=  `### Custom Items: ${fields.otherItems}\n`;
+        otherCategories.push('Custom Items');
+        otherGroups['Custom Items'] = _.map(fields.otherItems.split(','), (item) => { return [item, '']; });
       }
+      renderTable(otherGroups, otherCategories);
     }
 
     return markdown;
@@ -88,9 +106,13 @@ async function savePackingSlips(packingSlips) {
     )
   );
 
-  // TODO : remove the out directory
-
-  await fs.promises.mkdir('out/');
+  try {
+    await fs.promises.mkdir('out/');
+  } catch (e) {
+    if (e.code !== 'EEXIST') {
+      throw e;
+    }
+  }
 
   const outPaths = await Promise.all(
     _.map(
@@ -101,7 +123,7 @@ async function savePackingSlips(packingSlips) {
         // NOTE that I used A3 page size here (which is longer than A4) to ensure 
         // that we didn't use two pages for one ticket
         const stream = Readable.from([slip.getMarkdown(itemToCategory)]).pipe(
-          markdownpdf({paperFormat: 'A3'})
+          markdownpdf({paperFormat: 'A3', cssPath: 'functions/scripts/packing-slips.css', paperOrientation: "landscape"})
         ).pipe(fs.createWriteStream(outPath));
         await util.promisify(finished)(stream);
 
