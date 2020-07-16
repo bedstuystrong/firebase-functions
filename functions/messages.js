@@ -3,6 +3,7 @@ const functions = require('firebase-functions');
 const _ = require('lodash');
 
 const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
+const { BULK_DELIVERY_STATUSES } = require('./schema');
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
@@ -32,7 +33,9 @@ async function getIntakePostContent(fields) {
 
 *Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n`;
 
-  if (fields.status !== 'Seeking Volunteer') {
+  if (_.includes(BULK_DELIVERY_STATUSES, fields.status)) {
+    content += '*No volunteer needed*: This will be part of the next bulk delivery!'    
+  } else if (fields.status !== 'Seeking Volunteer') {
     content += '*Assigned to*: ';
 
     const deliveryVolunteerslackID = await getVolunteerSlackID(fields.deliveryVolunteer);
