@@ -69,27 +69,33 @@ If possible, we recommend printing this email out so you can mark tickets done a
 - [ ] Check off each delivery below as you complete it
 - [ ] Fill out the delivery completion form when you're done
 
+----
 ### Tickets
   `;
 
   const tickets = cluster.map((ticket) => {
     let details = `\n
-**Ticket ID**: ${ticket.ticketID}\n
-**Name**: ${ticket.requestName}\n
-**Address**: [${ticket.address}](${googleMapsUrl(ticket.address)})\n
-**Phone Number**: ${ticket.phoneNumber}\n
-**Vulnerabilities**: ${_.join(ticket.vulnerability, ', ')}\n
-**Household Size**: ${ticket.householdSize}\n
-**Grocery List**: ${_.join(ticket.foodOptions, ', ')}\n
+#### Ticket ID: ${ticket.ticketID}\n
+- [ ] Confirmed someone will be home
+- [ ] Delivered!
+
+**Name**: ${ticket.requestName}<br />
+**Address**: [${ticket.address}](${googleMapsUrl(ticket.address)})<br />
+**Phone Number**: ${ticket.phoneNumber}<br />
+
+**Vulnerabilities**: ${_.join(ticket.vulnerability, ', ')}<br />
+**Household Size**: ${ticket.householdSize}<br />
+
+**Grocery List**: ${_.join(ticket.foodOptions, ', ')}<br />
     `;
     if (ticket.otherItems !== null) {
-      details += `\n**Custom Items**: ${ticket.otherItems}\n`;
+      details += `**Custom Items**: ${ticket.otherItems}<br />`;
     }
     if (ticket.deliveryNotes !== null) {
-      details += `\n**Notes for Delivery**: ${ticket.deliveryNotes}\n`;
+      details += `\n\n**Notes for Delivery**: ${ticket.deliveryNotes}`;
     }
     return details;
-  }).join('\n<hr />\n');
+  }).join('\n\n----\n');
 
   email += tickets;
 
