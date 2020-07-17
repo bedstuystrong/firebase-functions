@@ -4,9 +4,12 @@ const { argv } = require('yargs');
 const {
   BULK_ORDER_TABLE,
   INTAKE_TABLE,
+  ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
   getAllRecords,
   getRecordsWithStatus,
   getBulkOrder,
+  createRecord,
+  deleteRecord,
 } = require('../airtable');
 
 async function main() {
@@ -19,6 +22,13 @@ async function main() {
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
 
+  const itemsByHouseholdSize = _.fromPairs(
+    _.map(
+      await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
+      ([, fields,]) => { return [fields.item, fields]; },
+    ),
+  );
+
   const itemToNumRequested = await getBulkOrder(intakeRecords);
 
   const bulkOrderRecords = _.filter(
@@ -27,35 +37,20 @@ async function main() {
       return fields.deliveryDate === deliveryDate;
     }
   );
-  const itemToNumOrdered = _.fromPairs(
-    _.map(
-      bulkOrderRecords,
-      ([, fields,]) => { return [fields.item, fields.quantity]; },
-    )
-  );
+  for (const [id,,] of bulkOrderRecords) {
+    await deleteRecord(BULK_ORDER_TABLE, id);
+  }
 
-  const allItems = _.union(_.keys(itemToNumRequested), _.keys(itemToNumOrdered));
-  
-  const getDiffForItem = (item) => {
-    return [item, _.get(itemToNumOrdered, item, 0) - _.get(itemToNumRequested, item, 0)];
-  };
-
-  // item => ordered - requested
-  const delta = _.fromPairs(
-    _.filter(
-      _.map(allItems, getDiffForItem),
-      ([, diff]) => { return diff !== 0; },
-    )
-  );
-
-  console.log(`Found ${delta.length} items with mismatched quantities.`);
-
-  if (delta.length !== 0) {
-    console.log('Mismatched Items and Differences (num ordered - num requested)');
-    _.forIn(
-      delta,
-      (diff, item) => {
-        console.log(`   - ${item}: ${diff}`);
+  const BUFFER_RATIO = 0.10;
+  for (const [item, numRequested] of _.toPairs(itemToNumRequested)) {
+    const buffer = _.ceil(numRequested * BUFFER_RATIO);
+    await createRecord(
+      BULK_ORDER_TABLE,
+      {
+        item: item,
+        unit: (_.has(itemsByHouseholdSize, item)) ? _.get(itemsByHouseholdSize, item).unit : '?',
+        quantity: numRequested + buffer,
+        deliveryDate: deliveryDate,
       },
     );
   }
