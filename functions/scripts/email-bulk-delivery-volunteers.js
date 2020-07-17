@@ -53,18 +53,19 @@ This coming Saturday, please come to our warehouse at **[221 Glenmore Ave, Gate 
 
 You'll load your car with boxes for the above ticket IDs, and then deliver them to the addresses below. You may want to plan your route to Brooklyn Packers and then to the delivery locations in advance.
 
-The neighbors you're delivering to have confirmed their availability for 1-4pm, but you'll call each of them before you leave the warehouse, to get any last minute delivery details. 
+The neighbors you're delivering to have confirmed their availability for 1:30-4pm, but you'll call each of them before you leave the warehouse, to get any last minute delivery details. 
 
 If possible, we recommend printing this email out so you can mark tickets done as you complete them, to fill out the [Completion Form](https://airtable.com/shrvHf4k5lRo0I8F4) at the end. If any issues come up during your deliveries, or you are unable to deliver any of the boxes (because someone isn't home) contact Jackson at (410) 402-3236. We'll help you redistribute the food to the community in another way. 
 
 ### Checklist
-- [ ] Call the recipients of each ticket to make sure they're available. If they're not, we can use their items for someone else
-- [ ] At the warehouse, get your items:
-    - [ ] Main food boxes
+- [ ] Check in with Hanna or Jackson at the warehouse when you arrive. They'll let you know when your boxes are ready. While you're waiting:
+- [ ] Call the recipients of each ticket to make sure they're available. If they're not, please let Jackson or Hanna know -- we'll use their items for someone else, and deliver to them another time. 
+- [ ] At the warehouse, for each household get some of the following (we'll tell you):
+    - [ ] Main food boxes (may be multiple per household)
     - [ ] Cleaning supplies
     - [ ] Custom items
     - [ ] Water
-- [ ] Confirm all the ticket IDs match
+- [ ] Confirm all the ticket IDs match, and have your cluster number/name on them. 
 - [ ] Put everything in your car
 - [ ] Check off each delivery below as you complete it
 - [ ] Fill out the delivery completion form when you're done
