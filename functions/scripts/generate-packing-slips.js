@@ -5,6 +5,7 @@ const _ = require('lodash');
 const markdownpdf = require('markdown-pdf');
 const pdfmerge = require('easy-pdf-merge');
 const util = require('util');
+const { argv } = require('yargs');
 
 const {
   BULK_ORDER_TABLE,
@@ -41,23 +42,19 @@ class PackingSlip {
     ];
 
     const renderTable = (groups, categories) => {
-      const numRows = _.max(_.map(_.toPairs(groups), ([group, items]) => { return items.length; }));
+      const numRows = _.max(_.map(_.toPairs(groups), ([, items]) => { return items.length; }));
       markdown += '| ';
-      for (const category of categories) {
-        markdown += ` ${category} |`
-      }
+      _.forEach(categories, (category) => { markdown += ` ${category} |`; });
       markdown += '\n';
-      for (const category of categories) {
-        markdown += ` --- |`
-      }
+      _.forEach(categories, () => { markdown += ' --- |'; });
       for (var i = 0; i < numRows; i++) {
-        markdown += '\n';
+        markdown += '\n|';
         for (const category of categories) {
           const items = groups[category];
           if (items === undefined || i >= items.length) {
             markdown += ' &nbsp; |';
           } else {
-            markdown += ` ${items[i][1]} ${items[i][0]} |`
+            markdown += ` ${items[i][1]} ${items[i][0]} |`;
           }
         }
       }
@@ -66,32 +63,25 @@ class PackingSlip {
     renderTable(itemGroups, categoryOrder);
 
     if (!_.isNull(fields.otherItems) || !_.isEqual(this.provided, this.requested)) {
-      markdown += '\n---\n';
-      markdown += '## **Other** (Provided By Bed-Stuy Strong!):\n';
+      const missingItems = _.filter(
+        _.map(
+          _.toPairs(this.requested),
+          ([item, numRequested]) => {
+            return [item, numRequested - _.get(this.provided, item, 0)];
+          },
+        ),
+        ([, diff]) => { return diff !== 0; },
+      );
 
-      const otherCategories = [];
-      const otherGroups = {};
+      const customItems = (!_.isNull(fields.otherItems) ? _.map(fields.otherItems.split(','), (item) => { return [item, '']; }) : []);
 
-      if (!_.isEqual(this.provided, this.requested)) {
-        const missing = _.filter(
-          _.map(
-            _.toPairs(this.requested),
-            ([item, numRequested]) => {
-              return [item, numRequested - _.get(this.provided, item, 0)];
-            },
-          ),
-          ([, diff]) => { return diff !== 0; },
-        );
+      const otherItems = missingItems.concat(customItems);
 
-        otherCategories.push('Missing');
-        otherGroups['Missing'] = missing;
+      if (otherItems.length > 0) {
+        markdown += '\n---\n';
+
+        renderTable({ Other: otherItems }, ['Other']);
       }
-
-      if (!_.isNull(fields.otherItems)) {
-        otherCategories.push('Custom Items');
-        otherGroups['Custom Items'] = _.map(fields.otherItems.split(','), (item) => { return [item, '']; });
-      }
-      renderTable(otherGroups, otherCategories);
     }
 
     return markdown;
@@ -123,7 +113,7 @@ async function savePackingSlips(packingSlips) {
         // NOTE that I used A3 page size here (which is longer than A4) to ensure 
         // that we didn't use two pages for one ticket
         const stream = Readable.from([slip.getMarkdown(itemToCategory)]).pipe(
-          markdownpdf({paperFormat: 'A3', cssPath: 'functions/scripts/packing-slips.css', paperOrientation: "landscape"})
+          markdownpdf({paperFormat: 'A3', cssPath: 'functions/scripts/packing-slips.css', paperOrientation: 'landscape'})
         ).pipe(fs.createWriteStream(outPath));
         await util.promisify(finished)(stream);
 
@@ -142,11 +132,14 @@ async function savePackingSlips(packingSlips) {
 }
 
 async function main() {
+  // TODO: Actually implement a real arg parser.
+  const deliveryDate = argv.deliveryDate;
+
   const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
 
-  const bulkOrderRecords = await getAllRecords(BULK_ORDER_TABLE);
+  const bulkOrderRecords = _.filter(await getAllRecords(BULK_ORDER_TABLE), ([, fields,]) => { return fields.deliveryDate === deliveryDate; });
 
   const itemToNumAvailable = _.fromPairs(
     _.map(
