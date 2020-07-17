@@ -45,6 +45,7 @@ const INTAKE_SCHEMA = {
   costCategory: 'cost_category',
   foodOptions: 'Food Options',
   otherItems: 'Other Items',
+  bulkCluster: 'Bulk Cluster',
 };
 
 const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
@@ -98,6 +99,12 @@ const BULK_ORDER_SCHEMA = {
   deliveryDate: 'Bulk Delivery Date',
 };
 
+const BULK_CLUSTER_SCHEMA = {
+  name: 'Name',
+  intakeTickets: 'Intake Tickets',
+  volunteer: 'Volunteer',
+};
+
 const INBOUND_STATUSES = {
   intakeNeeded: 'Intake Needed',
   inProgress: 'In Progress',
@@ -136,8 +143,9 @@ const denormalize = (object, schema) => {
 };
 
 module.exports = {
-  BULK_ORDER_SCHEMA,
+  BULK_CLUSTER_SCHEMA,
   BULK_DELIVERY_STATUSES,
+  BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
   INTAKE_SCHEMA,

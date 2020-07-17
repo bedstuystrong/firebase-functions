@@ -5,6 +5,7 @@ const _ = require('lodash');
 const Airtable = require('airtable');
 
 const {
+  BULK_CLUSTER_SCHEMA,
   BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
@@ -32,6 +33,7 @@ const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 const META_TABLE = functions.config().airtable.meta_table;
 const ITEMS_BY_HOUSEHOLD_SIZE_TABLE = functions.config().airtable.items_by_household_size_table;
 const BULK_ORDER_TABLE = functions.config().airtable.bulk_order_table;
+const BULK_CLUSTER_TABLE = functions.config().airtable.bulk_cluster_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
@@ -39,6 +41,7 @@ const TABLE_SCHEMAS = {
   [VOLUNTEER_FORM_TABLE]: VOLUNTEER_SCHEMA,
   [REIMBURSEMENTS_TABLE]: REIMBURSEMENT_SCHEMA,
   [ITEMS_BY_HOUSEHOLD_SIZE_TABLE]: ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA,
+  [BULK_CLUSTER_TABLE]: BULK_CLUSTER_SCHEMA,
   [BULK_ORDER_TABLE]: BULK_ORDER_SCHEMA,
 };
 
@@ -299,6 +302,7 @@ async function storeMeta(key, data) {
 /* EXPORT */
 
 module.exports = {
+  BULK_CLUSTER_TABLE: BULK_CLUSTER_TABLE,
   BULK_ORDER_TABLE: BULK_ORDER_TABLE,
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,

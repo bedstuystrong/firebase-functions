@@ -14,19 +14,23 @@ const {
   getAllRecords,
   getRecordsWithStatus,
   getBulkOrder,
+  BULK_CLUSTER_TABLE,
 } = require('../airtable');
 
 class PackingSlip {
-  constructor(intakeRecord, requested, provided) {
+  constructor(intakeRecord, requested, provided, bulkClusterRecords) {
     this.intakeRecord = intakeRecord;
     this.requested = requested;
     this.provided = provided;
+    this.bulkClusterRecords = bulkClusterRecords;
   }
 
   getMarkdown(itemToCategory) {
     const fields = this.intakeRecord[1];
 
-    let markdown = `# **${fields.ticketID}**: ${fields.requestName} (${fields.nearestIntersection})\n\n`;
+    const [, bulkCluster,] = _.find(this.bulkClusterRecords, ([id,,]) => { return id === fields.bulkCluster[0]; });
+
+    let markdown = `# **${fields.ticketID}** (Cluster ${bulkCluster.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
 
     const itemGroups = _.groupBy(
       _.toPairs(this.provided),
@@ -148,6 +152,8 @@ async function main() {
     )
   );
 
+  const bulkClusterRecords = await getAllRecords(BULK_CLUSTER_TABLE);
+
   const packingSlips = await Promise.all(
     _.map(
       intakeRecords,
@@ -179,7 +185,7 @@ async function main() {
           )
         );
 
-        return new PackingSlip(record, itemToNumRequested, itemToNumProvided);
+        return new PackingSlip(record, itemToNumRequested, itemToNumProvided, bulkClusterRecords);
       },
     )
   );
