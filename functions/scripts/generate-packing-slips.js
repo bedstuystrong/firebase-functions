@@ -138,6 +138,9 @@ async function savePackingSlips(packingSlips) {
 async function main() {
   // TODO: Actually implement a real arg parser.
   const deliveryDate = argv.deliveryDate;
+  if (!deliveryDate) {
+    throw new Error('must provide --deliveryDate=yyyy-mm-dd');
+  }
 
   const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 
