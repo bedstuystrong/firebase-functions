@@ -31,11 +31,11 @@ class PackingSlip {
     const fields = this.intakeRecord[1];
 
     const [, bulkCluster,] = _.find(this.bulkClusterRecords, ([id,,]) => { return id === fields.bulkCluster[0]; });
-    const [, volunteer,] = _.find(this.volunteerRecords, ([id,,]) => { return id === fields.deliveryVolunteer[0]; })
+    const [, volunteer,] = _.find(this.volunteerRecords, ([id,,]) => { return id === fields.deliveryVolunteer[0]; });
 
     let markdown = `# **${fields.ticketID}** (Cluster ${bulkCluster.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
 
-    markdown += `**Delivery**: ${volunteer.Name}\n\n`
+    markdown += `**Delivery**: ${volunteer.Name}\n\n`;
 
     const itemGroups = _.groupBy(
       _.toPairs(this.provided),
@@ -84,17 +84,17 @@ class PackingSlip {
 
       const customItems = (
         !_.isNull(fields.otherItems)
-        ? _.map(
-          _.filter(
-            _.map(
-              fields.otherItems.split(','),
-              (item) => { return item.trim(); }
+          ? _.map(
+            _.filter(
+              _.map(
+                fields.otherItems.split(','),
+                (item) => { return item.trim(); }
+              ),
+              (item) => { return item.length > 0; }
             ),
-            (item) => { return item.length > 0; }
-          ),
-          (item) => { return [item, '']; }
-        )
-        : []
+            (item) => { return [item, '']; }
+          )
+          : []
       );
 
       const otherItems = missingItems.concat(customItems);
