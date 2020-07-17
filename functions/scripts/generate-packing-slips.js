@@ -11,6 +11,7 @@ const {
   BULK_ORDER_TABLE,
   INTAKE_TABLE,
   ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
+  VOLUNTEER_FORM_TABLE,
   getAllRecords,
   getRecordsWithStatus,
   getBulkOrder,
@@ -18,19 +19,23 @@ const {
 } = require('../airtable');
 
 class PackingSlip {
-  constructor(intakeRecord, requested, provided, bulkClusterRecords) {
+  constructor(intakeRecord, requested, provided, bulkClusterRecords, volunteerRecords) {
     this.intakeRecord = intakeRecord;
     this.requested = requested;
     this.provided = provided;
     this.bulkClusterRecords = bulkClusterRecords;
+    this.volunteerRecords = volunteerRecords;
   }
 
   getMarkdown(itemToCategory) {
     const fields = this.intakeRecord[1];
 
     const [, bulkCluster,] = _.find(this.bulkClusterRecords, ([id,,]) => { return id === fields.bulkCluster[0]; });
+    const [, volunteer,] = _.find(this.volunteerRecords, ([id,,]) => { return id === fields.deliveryVolunteer[0]; })
 
     let markdown = `# **${fields.ticketID}** (Cluster ${bulkCluster.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
+
+    markdown += `**Delivery**: ${volunteer.Name}\n\n`
 
     const itemGroups = _.groupBy(
       _.toPairs(this.provided),
@@ -77,14 +82,45 @@ class PackingSlip {
         ([, diff]) => { return diff !== 0; },
       );
 
-      const customItems = (!_.isNull(fields.otherItems) ? _.map(fields.otherItems.split(','), (item) => { return [item, '']; }) : []);
+      const customItems = (
+        !_.isNull(fields.otherItems)
+        ? _.map(
+          _.filter(
+            _.map(
+              fields.otherItems.split(','),
+              (item) => { return item.trim(); }
+            ),
+            (item) => { return item.length > 0; }
+          ),
+          (item) => { return [item, '']; }
+        )
+        : []
+      );
 
       const otherItems = missingItems.concat(customItems);
 
       if (otherItems.length > 0) {
         markdown += '\n---\n';
 
-        renderTable({ Other: otherItems }, ['Other']);
+        const renderOtherTable = (items) => {
+          const numCols = 2;
+          const numRows = _.ceil(items.length / 2.0);
+          markdown += '| Other |\n| --- |';
+          var i = 0;
+          for (var row = 0; row < numRows; row++) {
+            markdown += '\n|';
+            for (var col = 0; col < numCols; col++) {
+              if (i >= items.length) {
+                markdown += ' &nbsp; |';
+              } else {
+                markdown += ` ${items[i][1]} ${items[i][0]} |`;
+                i++;
+              }
+            }
+          }
+          markdown += '\n';      
+        };
+        renderOtherTable(otherItems);
       }
     }
 
@@ -157,6 +193,8 @@ async function main() {
 
   const bulkClusterRecords = await getAllRecords(BULK_CLUSTER_TABLE);
 
+  const volunteerRecords = await getAllRecords(VOLUNTEER_FORM_TABLE);
+
   const packingSlips = await Promise.all(
     _.map(
       intakeRecords,
@@ -168,7 +206,7 @@ async function main() {
             _.map(
               _.toPairs(itemToNumRequested),
               ([item, numRequested]) => {
-                return [item, _.min([numRequested, itemToNumAvailable[item]])];
+                return [item, _.min([numRequested, itemToNumAvailable[item] || 0])];
               }
             ),
             ([, numProvided]) => {
@@ -188,7 +226,7 @@ async function main() {
           )
         );
 
-        return new PackingSlip(record, itemToNumRequested, itemToNumProvided, bulkClusterRecords);
+        return new PackingSlip(record, itemToNumRequested, itemToNumProvided, bulkClusterRecords, volunteerRecords);
       },
     )
   );
