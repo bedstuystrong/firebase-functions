@@ -2,10 +2,11 @@ const functions = require('firebase-functions');
 const _ = require('lodash');
 const sgMail = require('@sendgrid/mail');
 const showdown  = require('showdown');
+const { argv } = require('yargs')
 
 sgMail.setApiKey(functions.config().sendgrid.api_key);
 
-const { INTAKE_TABLE, VOLUNTEER_FORM_TABLE, getRecord, getRecordsWithStatus } = require('../airtable');
+const { INTAKE_TABLE, VOLUNTEER_FORM_TABLE, getRecord, getRecordsWithStatus, getAllRecords, BULK_CLUSTER_TABLE } = require('../airtable')
 
 const googleMapsUrl = (address) => (
   `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURI(address + ', Brooklyn, NY')}`
@@ -15,13 +16,15 @@ async function getBulkDeliveryConfirmedTickets() {
   return await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 }
 
+function getBulkCluster([, fields,]) {
+  if (fields.bulkCluster.length !== 1) {
+    throw new Error(`Ticket ${fields} does not have one Bulk Cluster`)
+  }
+  return fields.bulkCluster[0]
+}
+
 function clusterTickets(tickets) {
-  return _.groupBy(tickets, ([, fields,]) => {
-    if (fields['Bulk Cluster'].length !== 1) {
-      throw new Error(`Ticket ${fields} does not have one Bulk Cluster`);
-    }
-    return fields['Bulk Cluster'][0];
-  });
+  return _.groupBy(tickets, getBulkCluster)
 }
 
 async function getDeliveryVolunteerInfo(cluster, tickets) {
@@ -131,8 +134,16 @@ async function sendEmail(msg) {
 }
 
 async function main() {
-  const bulkTickets = await getBulkDeliveryConfirmedTickets();
-  const clusters = clusterTickets(bulkTickets);
+  const allClusters = await getAllRecords(BULK_CLUSTER_TABLE);
+  const bulkTickets = _.filter(
+    await getBulkDeliveryConfirmedTickets(),
+    (argv.cluster === undefined) ? () => { return true; } : (ticket) => {
+      const clusterId = getBulkCluster(ticket);
+      const cluster = _.find(allClusters, ([id,,]) => { return id === clusterId; });
+      return cluster[1].name === '' + argv.cluster;
+    }
+  );
+  const clusters = clusterTickets(bulkTickets)
   const assignedClusters = await Promise.all(_.map(_.entries(clusters), async ([clusterId, cluster]) => (
     { cluster: _.map(cluster, ([, fields,]) => fields), volunteer: (await getDeliveryVolunteerInfo(clusterId, cluster))[1] }
   )));
