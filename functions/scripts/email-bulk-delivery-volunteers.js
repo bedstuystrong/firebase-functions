@@ -110,7 +110,7 @@ If possible, we recommend printing this email out so you can mark tickets done a
     cc: 'bedstuystrong+bulk@bedstuystrong.com',
     replyTo: 'bedstuystrong+bulk@bedstuystrong.com',
     from: functions.config().sendgrid.from,
-    subject: 'Bulk Delivery Prep and Instructions',
+    subject: `Bulk Delivery Prep and Instructions for ${volunteer.Name.split(' ')[0]}`,
     text: email,
     html: html,
   };
