@@ -1,11 +1,13 @@
 const _ = require('lodash');
 const yargs = require('yargs');
+const moment = require('moment');
 
 const {
   BULK_ORDER_TABLE,
   INTAKE_TABLE,
   ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
   createRecord,
+  deleteRecord,
   getAllRecords,
   getBulkOrder,
   getRecordsWithStatus,
@@ -159,7 +161,7 @@ const populateBulkOrder = async (bulkOrderRows, deliveryDate) => {
   const oldBulkOrderRecords = _.filter(
     await getAllRecords(BULK_ORDER_TABLE),
     ([, fields,]) => {
-      return fields.deliveryDate === deliveryDate;
+      return fields.deliveryDate === moment(deliveryDate).utc().format('YYYY-MM-DD');
     }
   );
   await Promise.all(_.map(oldBulkOrderRecords, async ([id,,]) => { await deleteRecord(BULK_ORDER_TABLE, id); }));
