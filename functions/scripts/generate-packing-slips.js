@@ -5,7 +5,7 @@ const _ = require('lodash');
 const markdownpdf = require('markdown-pdf');
 const pdfmerge = require('easy-pdf-merge');
 const util = require('util');
-const { argv } = require('yargs');
+const yargs = require('yargs');
 
 const {
   BULK_ORDER_TABLE,
@@ -172,17 +172,17 @@ async function savePackingSlips(packingSlips) {
 }
 
 async function main() {
-  // TODO: Actually implement a real arg parser.
-  const deliveryDate = argv.deliveryDate;
-  if (!deliveryDate) {
-    throw new Error('must provide --deliveryDate=yyyy-mm-dd');
-  }
+  const { argv } = yargs.option('delivery-date', {
+    coerce: (x) => new Date(x),
+    demandOption: true,
+    describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
+  });
 
   const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
 
-  const bulkOrderRecords = _.filter(await getAllRecords(BULK_ORDER_TABLE), ([, fields,]) => { return fields.deliveryDate === deliveryDate; });
+  const bulkOrderRecords = _.filter(await getAllRecords(BULK_ORDER_TABLE), ([, fields,]) => { return fields.deliveryDate === argv.deliveryDate; });
 
   const itemToNumAvailable = _.fromPairs(
     _.map(
