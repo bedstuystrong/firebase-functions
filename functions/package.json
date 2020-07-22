@@ -30,6 +30,7 @@
     "libphonenumber-js": "^1.7.48",
     "lodash": "^4.17.19",
     "markdown-pdf": "^10.0.0",
+    "moment": "^2.27.0",
     "promise.allsettled": "^1.0.2",
     "showdown": "^1.9.1",
     "slack": "^11.0.2",

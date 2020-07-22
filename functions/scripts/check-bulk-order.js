@@ -1,4 +1,5 @@
 const _ = require('lodash');
+const { argv } = require('yargs');
 
 const {
   BULK_ORDER_TABLE,
@@ -9,13 +10,23 @@ const {
 } = require('../airtable');
 
 async function main() {
+  // TODO: Do real argument parsing.
+  const deliveryDate = argv.deliveryDate;
+  if (!deliveryDate) {
+    throw new Error('must provide --deliveryDate=yyyy-mm-dd');
+  }
   const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
 
   const itemToNumRequested = await getBulkOrder(intakeRecords);
 
-  const bulkOrderRecords = await getAllRecords(BULK_ORDER_TABLE);
+  const bulkOrderRecords = _.filter(
+    await getAllRecords(BULK_ORDER_TABLE),
+    ([, fields,]) => {
+      return fields.deliveryDate === deliveryDate;
+    }
+  );
   const itemToNumOrdered = _.fromPairs(
     _.map(
       bulkOrderRecords,
