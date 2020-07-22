@@ -34,7 +34,7 @@ async function getIntakePostContent(fields) {
 *Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n`;
 
   if (_.includes(BULK_DELIVERY_STATUSES, fields.status)) {
-    content += '*No volunteer needed*: This will be part of the next bulk delivery!'    
+    content += '*No volunteer needed*: This will be part of the next bulk delivery!';
   } else if (fields.status !== 'Seeking Volunteer') {
     content += '*Assigned to*: ';
 

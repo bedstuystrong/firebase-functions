@@ -43,9 +43,9 @@ async function main() {
 
   console.log('Generating the order sheet...');
 
-  const itemToNumRequested = argv._[0] === "predict" ? (
+  const itemToNumRequested = argv._[0] === 'predict' ? (
     await predictOrder(argv)
-  ) : (argv._[0] === "finalize" ? (
+  ) : (argv._[0] === 'finalize' ? (
     await finalizeOrder(argv)
   ) : (() => { throw new Error(`Unknown command ${argv._}`); })());
 
