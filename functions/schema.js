@@ -99,10 +99,12 @@ const BULK_ORDER_SCHEMA = {
   deliveryDate: 'Bulk Delivery Date',
 };
 
-const BULK_CLUSTER_SCHEMA = {
+const BULK_DELIVERY_ROUTES_SCHEMA = {
   name: 'Name',
   intakeTickets: 'Intake Tickets',
-  volunteer: 'Volunteer',
+  deliveryVolunteer: 'Volunteer',
+  deliveryDate: 'Delivery Date',
+  arrivalTime: 'Warehouse Arrival Time',
 };
 
 const INBOUND_STATUSES = {
@@ -143,7 +145,7 @@ const denormalize = (object, schema) => {
 };
 
 module.exports = {
-  BULK_CLUSTER_SCHEMA,
+  BULK_DELIVERY_ROUTES_SCHEMA,
   BULK_DELIVERY_STATUSES,
   BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,

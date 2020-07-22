@@ -6,7 +6,7 @@ const yargs = require('yargs');
 
 sgMail.setApiKey(functions.config().sendgrid.api_key);
 
-const { INTAKE_TABLE, VOLUNTEER_FORM_TABLE, getRecord, getRecordsWithStatus, getAllRecords, BULK_CLUSTER_TABLE } = require('../airtable');
+const { INTAKE_TABLE, VOLUNTEER_FORM_TABLE, getRecord, getRecordsWithStatus, getAllRecords, BULK_DELIVERY_ROUTES_TABLE } = require('../airtable');
 
 const googleMapsUrl = (address) => (
   `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURI(address + ', Brooklyn, NY')}`
@@ -42,7 +42,7 @@ async function getDeliveryVolunteerInfo(cluster, tickets) {
   return await getRecord(VOLUNTEER_FORM_TABLE, volunteerIds[0]);
 }
 
-function renderEmail({ cluster, volunteer }) {
+function renderEmail({ cluster, volunteer, arrivalTime }) {
   var email = `
 Hi ${volunteer.Name.split(' ')[0]}!
 
@@ -52,7 +52,7 @@ We've assigned you the following tickets: ${_.join(_.map(cluster, 'ticketID'), '
 
 ### Instructions
 
-This coming Saturday, please come to our warehouse at **[221 Glenmore Ave, Gate 4](${googleMapsUrl('221 Glenmore Ave')}) at 1pm** to pick up your deliveries. Since there are perishables in the deliveries, you'll need to deliver them immediately after pickup. 
+This coming Saturday, please come to our warehouse at **[221 Glenmore Ave, Gate 4](${googleMapsUrl('221 Glenmore Ave')}) at ${arrivalTime}** to pick up your deliveries. Since there are perishables in the deliveries, you'll need to deliver them immediately after pickup.
 
 You'll load your car with boxes for the above ticket IDs, and then deliver them to the addresses below. You may want to plan your route to Brooklyn Packers and then to the delivery locations in advance.
 
@@ -139,8 +139,9 @@ async function main() {
       demandOption: false,
       describe: 'Email just one delivery volunteer for a specific cluster ID',
       type: 'string',
-    });
-  const allClusters = await getAllRecords(BULK_CLUSTER_TABLE);
+    })
+    .boolean('dry-run');
+  const allClusters = await getAllRecords(BULK_DELIVERY_ROUTES_TABLE);
   const allBulkTickets = await getBulkDeliveryConfirmedTickets();
   const bulkTickets = argv.cluster ? _.filter(
     allBulkTickets,
@@ -152,10 +153,18 @@ async function main() {
   ) : allBulkTickets;
   const clusters = clusterTickets(bulkTickets);
   const assignedClusters = await Promise.all(_.map(_.entries(clusters), async ([clusterId, cluster]) => (
-    { cluster: _.map(cluster, ([, fields,]) => fields), volunteer: (await getDeliveryVolunteerInfo(clusterId, cluster))[1] }
+    {
+      cluster: _.map(cluster, ([, fields,]) => fields),
+      volunteer: (await getDeliveryVolunteerInfo(clusterId, cluster))[1],
+      arrivalTime: _.find(allClusters, ([id,,]) => { return id === clusterId; }).arrivalTime,
+    }
   )));
   const emails = _.map(assignedClusters, renderEmail);
-  await Promise.all(_.map(emails, sendEmail));
+  if (argv.dryRun) {
+    console.log(emails);
+  } else {
+    await Promise.all(_.map(emails, sendEmail));
+  }
 }
 
 main().then(
