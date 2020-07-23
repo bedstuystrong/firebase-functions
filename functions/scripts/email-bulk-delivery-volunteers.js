@@ -16,18 +16,18 @@ async function getBulkDeliveryConfirmedTickets() {
   return await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 }
 
-function getBulkCluster([, fields,]) {
-  if (fields.bulkCluster.length !== 1) {
-    throw new Error(`Ticket ${fields} does not have one Bulk Cluster`);
+function getBulkRoute([, fields,]) {
+  if (fields.bulkRoute.length !== 1) {
+    throw new Error(`Ticket ${fields} does not have one Bulk Route`);
   }
-  return fields.bulkCluster[0];
+  return fields.bulkRoute[0];
 }
 
-function clusterTickets(tickets) {
-  return _.groupBy(tickets, getBulkCluster);
+function groupTicketsByRoute(tickets) {
+  return _.groupBy(tickets, getBulkRoute);
 }
 
-async function getDeliveryVolunteerInfo(cluster, tickets) {
+async function getDeliveryVolunteerInfo(route, tickets) {
   const volunteerIds = _.union(
     _.flatMap(tickets, ([, fields,]) => {
       if (!fields.deliveryVolunteer || fields.deliveryVolunteer.length !== 1) {
@@ -37,18 +37,18 @@ async function getDeliveryVolunteerInfo(cluster, tickets) {
     })
   );
   if (volunteerIds.length !== 1) {
-    throw new Error(`Cluster ${cluster} doesn't have exactly one delivery volunteer: ${volunteerIds}`);
+    throw new Error(`Route ${route} doesn't have exactly one delivery volunteer: ${volunteerIds}`);
   }
   return await getRecord(VOLUNTEER_FORM_TABLE, volunteerIds[0]);
 }
 
-function renderEmail({ cluster, volunteer, arrivalTime }) {
+function renderEmail({ route, volunteer, arrivalTime }) {
   var email = `
 Hi ${volunteer.Name.split(' ')[0]}!
 
 Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy Strong!
 
-We've assigned you the following tickets: ${_.join(_.map(cluster, 'ticketID'), ', ')}
+We've assigned you the following tickets: ${_.join(_.map(route, 'ticketID'), ', ')}
 
 ### Instructions
 
@@ -68,7 +68,7 @@ If possible, we recommend printing this email out so you can mark tickets done a
     - [ ] Cleaning supplies
     - [ ] Custom items
     - [ ] Water
-- [ ] Confirm all the ticket IDs match, and have your cluster number/name on them. 
+- [ ] Confirm all the ticket IDs match, and have your route number/name on them.
 - [ ] Put everything in your car
 - [ ] Check off each delivery below as you complete it
 - [ ] Fill out the delivery completion form when you're done
@@ -77,7 +77,7 @@ If possible, we recommend printing this email out so you can mark tickets done a
 ### Tickets
   `;
 
-  const tickets = cluster.map((ticket) => {
+  const tickets = route.map((ticket) => {
     let details = `\n
 #### Ticket ID: ${ticket.ticketID}\n
 - [ ] Confirmed someone will be home
@@ -135,31 +135,31 @@ async function sendEmail(msg) {
 
 async function main() {
   const { argv } = yargs
-    .option('cluster', {
+    .option('route', {
       demandOption: false,
-      describe: 'Email just one delivery volunteer for a specific cluster ID',
+      describe: 'Email just one delivery volunteer for a specific route ID',
       type: 'string',
     })
     .boolean('dry-run');
-  const allClusters = await getAllRecords(BULK_DELIVERY_ROUTES_TABLE);
+  const allRoutes = await getAllRecords(BULK_DELIVERY_ROUTES_TABLE);
   const allBulkTickets = await getBulkDeliveryConfirmedTickets();
-  const bulkTickets = argv.cluster ? _.filter(
+  const bulkTickets = argv.route ? _.filter(
     allBulkTickets,
     (ticket) => {
-      const clusterId = getBulkCluster(ticket);
-      const cluster = _.find(allClusters, ([id,,]) => { return id === clusterId; });
-      return cluster[1].name === String(argv.cluster);
+      const routeId = getBulkRoute(ticket);
+      const route = _.find(allRoutes, ([id,,]) => { return id === routeId; });
+      return route[1].name === String(argv.route);
     }
   ) : allBulkTickets;
-  const clusters = clusterTickets(bulkTickets);
-  const assignedClusters = await Promise.all(_.map(_.entries(clusters), async ([clusterId, cluster]) => (
+  const routes = groupTicketsByRoute(bulkTickets);
+  const assignedRoutes = await Promise.all(_.map(_.entries(routes), async ([routeId, route]) => (
     {
-      cluster: _.map(cluster, ([, fields,]) => fields),
-      volunteer: (await getDeliveryVolunteerInfo(clusterId, cluster))[1],
-      arrivalTime: _.find(allClusters, ([id,,]) => { return id === clusterId; }).arrivalTime,
+      route: _.map(route, ([, fields,]) => fields),
+      volunteer: (await getDeliveryVolunteerInfo(routeId, route))[1],
+      arrivalTime: _.find(allRoutes, ([id,,]) => { return id === routeId; }).arrivalTime,
     }
   )));
-  const emails = _.map(assignedClusters, renderEmail);
+  const emails = _.map(assignedRoutes, renderEmail);
   if (argv.dryRun) {
     console.log(emails);
   } else {

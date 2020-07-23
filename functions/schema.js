@@ -45,7 +45,7 @@ const INTAKE_SCHEMA = {
   costCategory: 'cost_category',
   foodOptions: 'Food Options',
   otherItems: 'Other Items',
-  bulkCluster: 'Bulk Cluster',
+  bulkRoute: 'Bulk Delivery Route',
 };
 
 const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
