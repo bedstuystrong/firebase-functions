@@ -238,6 +238,14 @@ async function getVolunteerSlackID(volunteerID) {
   return normalize(rec.fields, VOLUNTEER_SCHEMA).slackUserID;
 }
 
+async function getVolunteerBySlackID(slackID) {
+  const query = base(VOLUNTEER_FORM_TABLE).select({
+    filterByFormula: `{Slack User ID} = "${slackID}"`
+  });
+  const records = await query.all();
+  return records.map(normalizeRecords(VOLUNTEER_FORM_TABLE))[0];
+}
+
 /* INTAKE */
 
 // Returns the number of days left to complete the ticket
@@ -635,6 +643,7 @@ module.exports = {
   getAllRoutes: getAllRoutes,
   getTicketsForRoutes: getTicketsForRoutes,
   reconcileOrders: reconcileOrders,
+  getVolunteerBySlackID: getVolunteerBySlackID,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
   ReconciledOrder: ReconciledOrder,

@@ -187,6 +187,40 @@ _${safetyReminder}_
   return content;
 }
 
+const renderDeliveryDM = (ticketID, deliveryDMContent, deliveryChannel) => (
+  {
+    channel: deliveryChannel,
+    as_user: true,
+    text: deliveryDMContent, // fallback for blocks section
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: deliveryDMContent
+        }
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: 'Email me a shopping list'
+            },
+            style: 'primary',
+            action_id: 'email_shopping_list',
+            value: ticketID
+          }
+        ]
+      }
+    ],
+    unfurl_media: false,
+    unfurl_links: false,
+  }
+);
+
 async function getShoppingList(tickets) {
   const itemsByHouseholdSize = await getItemsByHouseholdSize();
   const categorizedStandardFoodOptions = ([, fields]) => {
@@ -194,18 +228,18 @@ async function getShoppingList(tickets) {
       _.map(fields.foodOptions, (item) => [
         item,
         {
-          category: itemsByHouseholdSize[item].Category,
+          category: (itemsByHouseholdSize[item]) ? itemsByHouseholdSize[item].category : 'Custom',
           amounts: {
             ticket: fields.ticketID,
-            quantity: itemsByHouseholdSize[item][fields.householdSize],
+            quantity: (itemsByHouseholdSize[item]) ? itemsByHouseholdSize[item][fields.householdSize] : 'custom',
           },
-          unit: itemsByHouseholdSize[item].unit,
+          unit: (itemsByHouseholdSize[item]) ? itemsByHouseholdSize[item].unit : 'custom',
         },
       ])
     );
   };
   const addAmounts = (item, acc, amounts) => {
-    return _.get(acc, item, {amounts: []}).amounts.concat([amounts]);
+    return _.get(acc, item, { amounts: [] }).amounts.concat([amounts]);
   };
   const totalCategorizedStandardFoodOptions = _.reduce(
     _.map(tickets, categorizedStandardFoodOptions),
@@ -387,4 +421,5 @@ module.exports = {
   Email,
   getShoppingList,
   renderShoppingList,
+  renderDeliveryDM
 };
