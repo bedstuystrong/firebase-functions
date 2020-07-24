@@ -27,7 +27,7 @@ function groupTicketsByRoute(tickets) {
   return _.groupBy(tickets, getBulkRoute);
 }
 
-async function getDeliveryVolunteerInfo(route, tickets) {
+async function getDeliveryVolunteerInfo(routeId, tickets) {
   const volunteerIds = _.union(
     _.flatMap(tickets, ([, fields,]) => {
       if (!fields.deliveryVolunteer || fields.deliveryVolunteer.length !== 1) {
@@ -37,22 +37,22 @@ async function getDeliveryVolunteerInfo(route, tickets) {
     })
   );
   if (volunteerIds.length !== 1) {
-    throw new Error(`Route ${route} doesn't have exactly one delivery volunteer: ${volunteerIds}`);
+    throw new Error(`Route ${routeId} doesn't have exactly one delivery volunteer: ${volunteerIds}`);
   }
   return await getRecord(VOLUNTEER_FORM_TABLE, volunteerIds[0]);
 }
 
-function renderEmail({ route, volunteer, arrivalTime }) {
+function renderEmail({ route, tickets, volunteer }) {
   var email = `
 Hi ${volunteer.Name.split(' ')[0]}!
 
 Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy Strong!
 
-We've assigned you the following tickets: ${_.join(_.map(route, 'ticketID'), ', ')}
+We've assigned you Route ${route.name} with the following tickets: ${_.join(_.map(tickets, 'ticketID'), ', ')}
 
 ### Instructions
 
-This coming Saturday, please come to our warehouse at **[221 Glenmore Ave, Gate 4](${googleMapsUrl('221 Glenmore Ave')}) at ${arrivalTime}** to pick up your deliveries. Since there are perishables in the deliveries, you'll need to deliver them immediately after pickup.
+This coming Saturday, please come to our warehouse at **[221 Glenmore Ave, Gate 4](${googleMapsUrl('221 Glenmore Ave')}) at ${route.arrivalTime}** to pick up your deliveries. Since there are perishables in the deliveries, you'll need to deliver them immediately after pickup.
 
 You'll load your car with boxes for the above ticket IDs, and then deliver them to the addresses below. You may want to plan your route to Brooklyn Packers and then to the delivery locations in advance.
 
@@ -74,10 +74,10 @@ If possible, we recommend printing this email out so you can mark tickets done a
 - [ ] Fill out the delivery completion form when you're done
 
 ----
-### Tickets
+### Tickets (Route ${route.name})
   `;
 
-  const tickets = route.map((ticket) => {
+  const ticketTexts = tickets.map((ticket) => {
     let details = `\n
 #### Ticket ID: ${ticket.ticketID}\n
 - [ ] Confirmed someone will be home
@@ -101,7 +101,7 @@ If possible, we recommend printing this email out so you can mark tickets done a
     return details;
   }).join('\n\n----\n');
 
-  email += tickets;
+  email += ticketTexts;
 
   const converter = new showdown.Converter({
     tasklists: true,
@@ -110,10 +110,10 @@ If possible, we recommend printing this email out so you can mark tickets done a
 
   const msg = {
     to: volunteer.email,
-    cc: 'bedstuystrong+bulk@bedstuystrong.com',
-    replyTo: 'bedstuystrong+bulk@bedstuystrong.com',
+    cc: 'operations+bulk@bedstuystrong.com',
+    replyTo: 'operations+bulk@bedstuystrong.com',
     from: functions.config().sendgrid.from,
-    subject: `Bulk Delivery Prep and Instructions for ${volunteer.Name.split(' ')[0]}`,
+    subject: `[BSS Bulk Ordering] July 25th Delivery Prep and Instructions for ${volunteer.Name.split(' ')[0]}`,
     text: email,
     html: html,
   };
@@ -123,7 +123,8 @@ If possible, we recommend printing this email out so you can mark tickets done a
 
 async function sendEmail(msg) {
   try {
-    await sgMail.send(msg);
+    const response = await sgMail.send(msg);
+    console.log(response);
   } catch (error) {
     console.error(error);
 
@@ -152,11 +153,15 @@ async function main() {
     }
   ) : allBulkTickets;
   const routes = groupTicketsByRoute(bulkTickets);
-  const assignedRoutes = await Promise.all(_.map(_.entries(routes), async ([routeId, route]) => (
+  const getRoute = (routeId) => {
+    const [, fields,] = _.find(allRoutes, ([id,,]) => { return id === routeId; });
+    return fields;
+  };
+  const assignedRoutes = await Promise.all(_.map(_.entries(routes), async ([routeId, ticketRecords]) => (
     {
-      route: _.map(route, ([, fields,]) => fields),
-      volunteer: (await getDeliveryVolunteerInfo(routeId, route))[1],
-      arrivalTime: _.find(allRoutes, ([id,,]) => { return id === routeId; }).arrivalTime,
+      tickets: _.map(ticketRecords, ([, fields,]) => fields),
+      volunteer: (await getDeliveryVolunteerInfo(routeId, ticketRecords))[1],
+      route: getRoute(routeId),
     }
   )));
   const emails = _.map(assignedRoutes, renderEmail);
