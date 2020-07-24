@@ -48,9 +48,9 @@ async function main() {
     )
   );
 
-  console.log(`Found ${delta.length} items with mismatched quantities.`);
+  console.log(`Found ${_.keys(delta).length} items with mismatched quantities.`);
 
-  if (delta.length !== 0) {
+  if (_.keys(delta).length !== 0) {
     console.log('Mismatched Items and Differences (num ordered - num requested)');
     _.forIn(
       delta,
