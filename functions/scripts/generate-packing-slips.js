@@ -2,6 +2,7 @@ const fs = require('fs');
 const { Readable, finished } = require('stream');
 
 const _ = require('lodash');
+const moment = require('moment');
 const markdownpdf = require('markdown-pdf');
 const pdfmerge = require('easy-pdf-merge');
 const util = require('util');
@@ -15,43 +16,49 @@ const {
   getAllRecords,
   getRecordsWithStatus,
   getBulkOrder,
-  BULK_CLUSTER_TABLE,
+  BULK_DELIVERY_ROUTES_TABLE,
 } = require('../airtable');
 
 class PackingSlip {
-  constructor(intakeRecord, requested, provided, bulkClusterRecords, volunteerRecords) {
+  constructor(intakeRecord, requested, provided, bulkDeliveryRoutes, volunteerRecords) {
     this.intakeRecord = intakeRecord;
     this.requested = requested;
     this.provided = provided;
-    this.bulkClusterRecords = bulkClusterRecords;
+    this.bulkDeliveryRoutes = bulkDeliveryRoutes;
     this.volunteerRecords = volunteerRecords;
   }
 
-  getMarkdown(itemToCategory) {
+  getMarkdown(itemToCategory, singleCategory, slipNumber) {
     const fields = this.intakeRecord[1];
 
-    const [, bulkCluster,] = _.find(this.bulkClusterRecords, ([id,,]) => { return id === fields.bulkCluster[0]; });
-    const [, volunteer,] = _.find(this.volunteerRecords, ([id,,]) => { return id === fields.deliveryVolunteer[0]; });
+    const [, bulkRoute,] = _.find(this.bulkDeliveryRoutes, ([id,,]) => { return id === fields.bulkRoute[0]; });
+    const [, volunteer,] = _.find(this.volunteerRecords, ([id,,]) => { return id === bulkRoute.deliveryVolunteer[0]; });
 
-    let markdown = `# **${fields.ticketID}** (Cluster ${bulkCluster.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
+    let markdown = `# **${fields.ticketID}** (Route ${bulkRoute.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
 
     markdown += `**Delivery**: ${volunteer.Name}\n\n`;
+    markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
 
     const itemGroups = _.groupBy(
       _.toPairs(this.provided),
       ([item,]) => { return _.includes(['Bread', 'Bananas'], item) ? 'Last' : itemToCategory[item]; }
     );
 
-    const categoryOrder = [
-      'Fridge / Frozen',
+    const categoryOrder = singleCategory ? [singleCategory] : [
       'Produce',
       'Non-perishable',
-      'Cleaning Bundle',
       'Last',
     ];
 
     const renderTable = (groups, categories) => {
-      const numRows = _.max(_.map(_.toPairs(groups), ([, items]) => { return items.length; }));
+      const numRows = _.max(
+        _.map(
+          _.toPairs(groups),
+          ([category, items]) => {
+            return _.includes(categories, category) ? items.length : 0;
+          }
+        )
+      );
       markdown += '| ';
       _.forEach(categories, (category) => { markdown += ` ${category} |`; });
       markdown += '\n';
@@ -71,7 +78,7 @@ class PackingSlip {
     };
     renderTable(itemGroups, categoryOrder);
 
-    if (!_.isNull(fields.otherItems) || !_.isEqual(this.provided, this.requested)) {
+    if (!singleCategory && (!_.isNull(fields.otherItems) || !_.isEqual(this.provided, this.requested))) {
       const missingItems = _.filter(
         _.map(
           _.toPairs(this.requested),
@@ -145,19 +152,25 @@ async function savePackingSlips(packingSlips) {
   }
 
   const outPaths = await Promise.all(
-    _.map(
+    _.flatMap(
       packingSlips,
-      async (slip) => {
-        const outPath = `out/${slip.intakeRecord[1].ticketID}.pdf`;
+      (slip) => {
+        const sheetCategories = [null, 'Cleaning Bundle', 'Fridge / Frozen'];
+        return _.map(
+          sheetCategories,
+          async (category, i) => {
+            const outPath = `out/${slip.intakeRecord[1].ticketID}-${i}.pdf`;
 
-        // NOTE that I used A3 page size here (which is longer than A4) to ensure 
-        // that we didn't use two pages for one ticket
-        const stream = Readable.from([slip.getMarkdown(itemToCategory)]).pipe(
-          markdownpdf({paperFormat: 'A3', cssPath: 'functions/scripts/packing-slips.css', paperOrientation: 'landscape'})
-        ).pipe(fs.createWriteStream(outPath));
-        await util.promisify(finished)(stream);
-
-        return outPath;
+            // NOTE that I used A3 page size here (which is longer than A4) to ensure 
+            // that we didn't use two pages for one ticket
+            const stream = Readable.from([slip.getMarkdown(itemToCategory, category, i)]).pipe(
+              markdownpdf({paperFormat: 'A3', cssPath: 'functions/scripts/packing-slips.css', paperOrientation: 'portrait'})
+            ).pipe(fs.createWriteStream(outPath));
+            await util.promisify(finished)(stream);
+    
+            return outPath;
+          },
+        );
       },
     )
   );
@@ -173,7 +186,7 @@ async function savePackingSlips(packingSlips) {
 
 async function main() {
   const { argv } = yargs.option('delivery-date', {
-    coerce: (x) => new Date(x),
+    coerce: (x) => moment(new Date(x)).utc().format('YYYY-MM-DD'),
     demandOption: true,
     describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
   });
@@ -191,7 +204,7 @@ async function main() {
     )
   );
 
-  const bulkClusterRecords = await getAllRecords(BULK_CLUSTER_TABLE);
+  const bulkDeliveryRoutes = await getAllRecords(BULK_DELIVERY_ROUTES_TABLE);
 
   const volunteerRecords = await getAllRecords(VOLUNTEER_FORM_TABLE);
 
@@ -226,7 +239,7 @@ async function main() {
           )
         );
 
-        return new PackingSlip(record, itemToNumRequested, itemToNumProvided, bulkClusterRecords, volunteerRecords);
+        return new PackingSlip(record, itemToNumRequested, itemToNumProvided, bulkDeliveryRoutes, volunteerRecords);
       },
     )
   );
