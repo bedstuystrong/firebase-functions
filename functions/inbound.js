@@ -33,6 +33,7 @@ module.exports = {
     });
   }),
 
+  /** DEPRECATED */
   voice: functions.https.onRequest((req, res) => {
     return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
@@ -52,6 +53,7 @@ module.exports = {
     });
   }),
 
+  /** DEPRECATED */
   empty: functions.https.onRequest((req, res) => {
     return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
@@ -61,8 +63,13 @@ module.exports = {
 
   callback: functions.https.onRequest(async (req, res) => {
     const tableKey = req.query.table;
-    const volunteerKey = req.query.volunteer;
     const recordID = req.query.record;
+    const volunteerID = req.query.volunteer;
+
+    if (!(tableKey && recordID && volunteerID)) {
+      res.status(400).send('Missing required query params');
+      return;
+    }
 
     const table = _.get({
       inbound: INBOUND_TABLE,
@@ -70,23 +77,11 @@ module.exports = {
     }, tableKey);
     if (!table) {
       res.status(400).send(`Unsupported table ${tableKey}`);
-    }
-
-    const volunteerFieldName = _.get({
-      intake: 'intakeVolunteer',
-      delivery: 'deliveryVolunteer',
-      bulk: 'bulkCallbackVolunteer',
-    }, volunteerKey);
-    if (!volunteerFieldName) {
-      res.status(400).send(`Missing volunteer field associated with key "${volunteerKey}"`);
+      return;
     }
 
     const [, recordFields,] = await getRecord(table, recordID);
-    if (!recordFields[volunteerFieldName]) {
-      res.status(400).send(`No ${volunteerKey} volunteer associated with record ${recordID} on table "${table}"`);
-    }
-
-    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, recordFields[volunteerFieldName]);
+    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, volunteerID);
     
     const recordPhoneNumber = parsePhoneNumberFromString(recordFields.phoneNumber, 'US').format('E.164');
     const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerFields.phoneNumber, 'US').format('E.164');
@@ -96,6 +91,8 @@ module.exports = {
         recordPhoneNumber,
         volunteerPhoneNumber,
       });
+      res.status(500).send('Missing a phone number on one or more records');
+      return;
     }
 
     await requestConnectCall(volunteerPhoneNumber, recordPhoneNumber);
