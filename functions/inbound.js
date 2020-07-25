@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
+const _ = require('lodash');
 
 const {
   middleware,
@@ -14,6 +15,7 @@ const {
   getRecord,
   INBOUND_TABLE,
   VOLUNTEER_FORM_TABLE,
+  INTAKE_TABLE,
 } = require('./airtable');
 
 
@@ -58,28 +60,47 @@ module.exports = {
   }),
 
   callback: functions.https.onRequest(async (req, res) => {
-    const inboundRecordID = req.query.record;
+    const tableKey = req.query.table;
+    const volunteerKey = req.query.volunteer;
+    const recordID = req.query.record;
 
-    const [, inboundFields,] = await getRecord(INBOUND_TABLE, inboundRecordID);
-    if (!inboundFields.intakeVolunteer) {
-      res.status(400).send(`No volunteer associated with record ${inboundRecordID}`);
+    const table = _.get({
+      inbound: INBOUND_TABLE,
+      intake: INTAKE_TABLE,
+    }, tableKey);
+    if (!table) {
+      res.status(400).send(`Unsupported table ${tableKey}`);
     }
 
-    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, inboundFields.intakeVolunteer);
+    const volunteerFieldName = _.get({
+      intake: 'intakeVolunteer',
+      delivery: 'deliveryVolunteer',
+      bulk: 'bulkCallbackVolunteer',
+    }, volunteerKey);
+    if (!volunteerFieldName) {
+      res.status(400).send(`Missing volunteer field associated with key "${volunteerKey}"`);
+    }
+
+    const [, recordFields,] = await getRecord(table, recordID);
+    if (!recordFields[volunteerFieldName]) {
+      res.status(400).send(`No ${volunteerKey} volunteer associated with record ${recordID} on table "${table}"`);
+    }
+
+    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, recordFields[volunteerFieldName]);
     
-    const inboundPhoneNumber = parsePhoneNumberFromString(inboundFields.phoneNumber, 'US').format('E.164');
+    const recordPhoneNumber = parsePhoneNumberFromString(recordFields.phoneNumber, 'US').format('E.164');
     const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerFields.phoneNumber, 'US').format('E.164');
 
-    if (!inboundPhoneNumber || !volunteerPhoneNumber) {
+    if (!recordPhoneNumber || !volunteerPhoneNumber) {
       console.error('Missing a phone number', {
-        inboundPhoneNumber,
+        recordPhoneNumber,
         volunteerPhoneNumber,
       });
     }
 
-    await requestConnectCall(volunteerPhoneNumber, inboundPhoneNumber);
+    await requestConnectCall(volunteerPhoneNumber, recordPhoneNumber);
 
-    res.status(200).send(`You'll get a call from Bed-Stuy Strong shortly connecting you to ${inboundFields.phoneNumber}`);
+    res.status(200).send(`Hi ${volunteerFields.name}! You'll get a call from Bed-Stuy Strong shortly connecting you to ${recordPhoneNumber}`);
   }),
 
 };
