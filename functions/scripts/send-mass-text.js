@@ -97,7 +97,7 @@ const main = async () => {
       type: 'boolean',
       default: false
     })
-    .example("./send-mass-text.js 'My English message' 'My Spanish message'", 'Send mass SMS to neighbors in English or Spanish. Messages must be in quotes.')
+    .example('./send-mass-text.js \'My English message\' \'My Spanish message\'', 'Send mass SMS to neighbors in English or Spanish. Messages must be in quotes.')
     .showHelpOnFail(false, 'whoops, something went wrong! run with --help')
     .demandCommand(1)
     .argv;

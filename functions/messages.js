@@ -1,5 +1,7 @@
 const functions = require('firebase-functions');
 
+const sgMail = require('@sendgrid/mail');
+const showdown = require('showdown');
 const _ = require('lodash');
 
 const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
@@ -14,13 +16,18 @@ const STATUS_TO_EMOJI = {
   'Complete': ':white_check_mark:',
 };
 
-const safetyReminder = 'Reminder: Please don’t volunteer for delivery if you have any COVID-19/cold/flu-like symptoms, or have come into contact with someone that’s tested positive.';
+sgMail.setApiKey(functions.config().sendgrid.api_key);
+
+const safetyReminder =
+  'Reminder: Please don’t volunteer for delivery if you have any COVID-19/cold/flu-like symptoms, or have come into contact with someone that’s tested positive.';
 
 /**
  * Get intake post content for a request's status
  */
 async function getIntakePostContent(fields) {
-  const intakeVolunteerSlackID = await getVolunteerSlackID(fields.intakeVolunteer);
+  const intakeVolunteerSlackID = await getVolunteerSlackID(
+    fields.intakeVolunteer
+  );
 
   if (!intakeVolunteerSlackID) {
     console.error('Missing Intake Volunteer Slack ID', {
@@ -29,16 +36,21 @@ async function getIntakePostContent(fields) {
     });
   }
 
-  let content = `<@${intakeVolunteerSlackID}> got a new request from our neighbor ${fields.requestName}
+  let content = `<@${intakeVolunteerSlackID}> got a new request from our neighbor ${
+    fields.requestName
+  }
 
 *Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n`;
 
   if (_.includes(BULK_DELIVERY_STATUSES, fields.status)) {
-    content += '*No volunteer needed*: This will be part of the next bulk delivery!';
+    content +=
+      '*No volunteer needed*: This will be part of the next bulk delivery!';
   } else if (fields.status !== 'Seeking Volunteer') {
     content += '*Assigned to*: ';
 
-    const deliveryVolunteerslackID = await getVolunteerSlackID(fields.deliveryVolunteer);
+    const deliveryVolunteerslackID = await getVolunteerSlackID(
+      fields.deliveryVolunteer
+    );
     if (deliveryVolunteerslackID) {
       content += `<@${deliveryVolunteerslackID}>`;
     } else {
@@ -59,12 +71,13 @@ async function getIntakePostContent(fields) {
   return content;
 }
 
-
 /**
  * Get details to post in intake post's thread
  */
 async function getIntakePostDetails(fields) {
-  const itemsDesc = (!_.isNull(fields.items)) ? fields.items : _.join(fields.foodOptions, ', ') + '.';
+  const itemsDesc = !_.isNull(fields.items)
+    ? fields.items
+    : _.join(fields.foodOptions, ', ') + '.';
 
   let content = `
 *Need*: ${fields.category}
@@ -85,7 +98,9 @@ async function getIntakePostDetails(fields) {
  * Get detailed message for delivery volunteers
  */
 async function getDeliveryDMContent(fields) {
-  const intakeVolunteerslackID = await getVolunteerSlackID(fields.intakeVolunteer);
+  const intakeVolunteerslackID = await getVolunteerSlackID(
+    fields.intakeVolunteer
+  );
 
   // TODO : gear the reimbursement flow towards delivery completion
   // TODO : error handling if volunteer id isn't present
@@ -96,7 +111,7 @@ async function getDeliveryDMContent(fields) {
 
 *Ticket ID*: ${fields.ticketID}`;
 
-  // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
+  // NOTE that it is a better user experience if we link to a thread, but we only have threads for new
   // tickets, and backfilling them ended up being too much work
   const linkToTicket = fields.slackPostThreadLink || fields.slackPostLink;
   if (linkToTicket) {
@@ -104,7 +119,9 @@ async function getDeliveryDMContent(fields) {
   }
   content += '\n\n';
 
-  const itemsDesc = (!_.isNull(fields.items)) ? fields.items : _.join(fields.foodOptions, ', ') + '.';
+  const itemsDesc = !_.isNull(fields.items)
+    ? fields.items
+    : _.join(fields.foodOptions, ', ') + '.';
 
   content += `*Neighbor*: ${fields.requestName}
 *Address*: ${fields.address}
@@ -140,7 +157,8 @@ async function getDeliveryDMContent(fields) {
     content += '- ';
   }
 
-  content += 'Please try to buy about a week’s worth of food for the household. It’s ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.\n';
+  content +=
+    'Please try to buy about a week’s worth of food for the household. It’s ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.\n';
 
   content += `
 *When you complete the delivery, please:*
@@ -157,14 +175,19 @@ _${safetyReminder}_
   return content;
 }
 
-async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 15) {
+async function getTicketSummaryBlocks(
+  tickets,
+  minDueDate = 3,
+  maxNumTickets = 15
+) {
   if (tickets.length === 0) {
     return {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: '\nNo unassigned high priority tickets! Y\'all rule!!! :confetti_ball:',
-      }
+        text:
+          '\nNo unassigned high priority tickets! Y\'all rule!!! :confetti_ball:',
+      },
     };
   }
 
@@ -174,72 +197,59 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
       text: {
         type: 'mrkdwn',
         text: `*Delivery Request Summary*\n\n:fire: _Overdue!_, :warning: _Due Today_, :turtle: _< ${minDueDate} Days Left_`,
-      }
+      },
     },
   ];
 
   const idToDueDate = _.zipObject(
-    _.map(
-      tickets,
-      ([id, ,]) => id,
-    ),
-    _.map(
-      tickets,
-      ([, fields,]) => getTicketDueIn(fields),
-    ),
+    _.map(tickets, ([id, ,]) => id),
+    _.map(tickets, ([, fields]) => getTicketDueIn(fields))
   );
 
   // Tickets sorted by due date
-  const sortedTickets = _.sortBy(
-    tickets,
-    ([id, ,]) => idToDueDate[id],
-  );
+  const sortedTickets = _.sortBy(tickets, ([id, ,]) => idToDueDate[id]);
 
   const neighborhoodToTickets = _.groupBy(
     sortedTickets,
-    ([, fields,]) => fields.neighborhood,
+    ([, fields]) => fields.neighborhood
   );
 
   const ticketIDsToInclude = _.slice(
     _.map(
-      _.filter(
-        sortedTickets,
-        ([id, ,]) => idToDueDate[id] <= minDueDate,
-      ),
-      ([id, ,]) => id,
+      _.filter(sortedTickets, ([id, ,]) => idToDueDate[id] <= minDueDate),
+      ([id, ,]) => id
     ),
     0,
-    maxNumTickets,
+    maxNumTickets
   );
 
   // Generate summaries for all neighborhoods
   for (const neighborhood in neighborhoodToTickets) {
     const neighborhoodTickets = neighborhoodToTickets[neighborhood];
     // NOTE that we only display tickets that are in the `maxNumSelected` truncated set
-    const filteredNeighborhoodTickets = _.filter(neighborhoodTickets, ([id, ,]) => _.includes(ticketIDsToInclude, id));
+    const filteredNeighborhoodTickets = _.filter(
+      neighborhoodTickets,
+      ([id, ,]) => _.includes(ticketIDsToInclude, id)
+    );
 
     if (filteredNeighborhoodTickets.length === 0) {
       continue;
     }
 
-    blocks.push(
-      {
-        type: 'divider',
-      }
-    );
+    blocks.push({
+      type: 'divider',
+    });
 
-    blocks.push(
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*${neighborhood}* _(${neighborhoodToTickets[neighborhood].length} Unassigned)_`,
-        }
-      }
-    );
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*${neighborhood}* _(${neighborhoodToTickets[neighborhood].length} Unassigned)_`,
+      },
+    });
 
     // NOTE that we only display tickets that are in the `maxNumSelected` truncated set
-    for (const [id, fields,] of filteredNeighborhoodTickets) {
+    for (const [id, fields] of filteredNeighborhoodTickets) {
       const dueDate = idToDueDate[id];
 
       let urgencyEmoji;
@@ -253,36 +263,53 @@ async function getTicketSummaryBlocks(tickets, minDueDate = 3, maxNumTickets = 1
 
       let ticketContent = `${urgencyEmoji} *${fields.ticketID}* (${fields.nearestIntersection}) [household of ${fields.householdSize}]`;
 
-      // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
+      // NOTE that it is a better user experience if we link to a thread, but we only have threads for new
       // tickets, and backfilling them ended up being too much work
       const link = fields.slackPostThreadLink || fields.slackPostLink;
       if (link) {
         ticketContent += `: <${link}|_link to post_>`;
       }
 
-      blocks.push(
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: ticketContent
-          }
-        }
-      );
+      blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: ticketContent,
+        },
+      });
     }
   }
 
-  blocks.push(
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `If you would like to claim one of these deliveries, please comment on the ticket thread by following the _link to post_, or reach out in <#${CHANNEL_IDS.delivery_volunteers}>`
-      }
-    }
-  );
+  blocks.push({
+    type: 'section',
+    text: {
+      type: 'mrkdwn',
+      text: `If you would like to claim one of these deliveries, please comment on the ticket thread by following the _link to post_, or reach out in <#${CHANNEL_IDS.delivery_volunteers}>`,
+    },
+  });
 
   return blocks;
+}
+
+class Email {
+  constructor(markdown, options) {
+    this.markdown = markdown;
+    this.options = options;
+  }
+
+  render() {
+    const converter = new showdown.Converter({ tasklists: true });
+    const html = converter.makeHtml(this.markdown);
+    return Object.assign({}, this.options, {
+      from: functions.config().sendgrid.from,
+      text: this.markdown,
+      html: html,
+    });
+  }
+
+  async send() {
+    return await sgMail.send(this.render());
+  }
 }
 
 module.exports = {
@@ -290,4 +317,5 @@ module.exports = {
   getIntakePostContent,
   getIntakePostDetails,
   getTicketSummaryBlocks,
+  Email,
 };

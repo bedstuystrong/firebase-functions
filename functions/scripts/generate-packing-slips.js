@@ -1,12 +1,12 @@
-const fs = require("fs");
-const { Readable, finished } = require("stream");
+const fs = require('fs');
+const { Readable, finished } = require('stream');
 
-const _ = require("lodash");
-const moment = require("moment");
-const markdownpdf = require("markdown-pdf");
-const pdfmerge = require("easy-pdf-merge");
-const util = require("util");
-const yargs = require("yargs");
+const _ = require('lodash');
+const moment = require('moment');
+const markdownpdf = require('markdown-pdf');
+const pdfmerge = require('easy-pdf-merge');
+const util = require('util');
+const yargs = require('yargs');
 
 const {
   BULK_ORDER_TABLE,
@@ -15,12 +15,10 @@ const {
   VOLUNTEER_FORM_TABLE,
   getAllRecords,
   getRecordsWithStatus,
-  getBulkOrder,
   getItemToNumAvailable,
-  PackingSlip,
   getPackingSlips,
   BULK_DELIVERY_ROUTES_TABLE,
-} = require("../airtable");
+} = require('../airtable');
 
 async function savePackingSlips(packingSlips) {
   const itemToCategory = _.fromPairs(
@@ -30,16 +28,16 @@ async function savePackingSlips(packingSlips) {
   );
 
   try {
-    await fs.promises.mkdir("out/");
+    await fs.promises.mkdir('out/');
   } catch (e) {
-    if (e.code !== "EEXIST") {
+    if (e.code !== 'EEXIST') {
       throw e;
     }
   }
 
   const outPaths = await Promise.all(
     _.flatMap(packingSlips, (slip) => {
-      const sheetCategories = [null, "Cleaning Bundle", "Fridge / Frozen"];
+      const sheetCategories = [null, 'Cleaning Bundle', 'Fridge / Frozen'];
       return _.map(sheetCategories, async (category, i) => {
         const outPath = `out/${slip.intakeRecord[1].ticketID}-${i}.pdf`;
 
@@ -50,9 +48,9 @@ async function savePackingSlips(packingSlips) {
         ])
           .pipe(
             markdownpdf({
-              paperFormat: "A3",
-              cssPath: "functions/scripts/packing-slips.css",
-              paperOrientation: "portrait",
+              paperFormat: 'A3',
+              cssPath: 'functions/scripts/packing-slips.css',
+              paperOrientation: 'portrait',
             })
           )
           .pipe(fs.createWriteStream(outPath));
@@ -63,25 +61,25 @@ async function savePackingSlips(packingSlips) {
     })
   );
 
-  const mergedOutPath = "out/packing_slips.pdf";
+  const mergedOutPath = 'out/packing_slips.pdf';
 
   await util.promisify(pdfmerge)(outPaths, mergedOutPath);
 
   // TODO : do the collating and conversation to A4 page size here
 
   return mergedOutPath;
-};
+}
 
 async function main() {
-  const { argv } = yargs.option("delivery-date", {
-    coerce: (x) => moment(new Date(x)).utc().format("YYYY-MM-DD"),
+  const { argv } = yargs.option('delivery-date', {
+    coerce: (x) => moment(new Date(x)).utc().format('YYYY-MM-DD'),
     demandOption: true,
-    describe: "Date of scheduled delivery (yyyy-mm-dd format)",
+    describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
   });
 
   const intakeRecords = _.sortBy(await getRecordsWithStatus(
     INTAKE_TABLE,
-    "Bulk Delivery Confirmed"
+    'Bulk Delivery Confirmed'
   ), ([, fields,]) => fields.ticketID);
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
@@ -109,7 +107,7 @@ async function main() {
     }
   });
 
-  console.log("Creating packing slips...");
+  console.log('Creating packing slips...');
 
   const outPath = await savePackingSlips(packingSlips);
 
@@ -117,5 +115,5 @@ async function main() {
 }
 
 main()
-  .then(() => console.log("Done."))
-  .catch((err) => console.log("Error!", { err: err }));
+  .then(() => console.log('Done.'))
+  .catch((err) => console.log('Error!', { err: err }));

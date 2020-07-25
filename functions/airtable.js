@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 
 const _ = require('lodash');
+const moment = require('moment');
 
 const Airtable = require('airtable');
 
@@ -31,9 +32,11 @@ const VOLUNTEER_FORM_TABLE = functions.config().airtable.volunteers_table;
 const INTAKE_TABLE = functions.config().airtable.intake_table;
 const REIMBURSEMENTS_TABLE = functions.config().airtable.reimbursements_table;
 const META_TABLE = functions.config().airtable.meta_table;
-const ITEMS_BY_HOUSEHOLD_SIZE_TABLE = functions.config().airtable.items_by_household_size_table;
+const ITEMS_BY_HOUSEHOLD_SIZE_TABLE = functions.config().airtable
+  .items_by_household_size_table;
 const BULK_ORDER_TABLE = functions.config().airtable.bulk_order_table;
-const BULK_DELIVERY_ROUTES_TABLE = functions.config().airtable.bulk_delivery_routes_table;
+const BULK_DELIVERY_ROUTES_TABLE = functions.config().airtable
+  .bulk_delivery_routes_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
@@ -54,7 +57,7 @@ function normalizeRecords(table) {
     return [
       record.id,
       normalize(record.fields, schema),
-      record.fields._meta ? JSON.parse(record.fields._meta) : {}
+      record.fields._meta ? JSON.parse(record.fields._meta) : {},
     ];
   };
 }
@@ -69,20 +72,41 @@ async function getRecord(table, recordID) {
   return normalizeRecords(table)(rec);
 }
 
-async function getRecordsWithTicketID(table, ticketID) {
-  const query = base(table).select({
-    filterByFormula: `{Ticket ID} = "${ticketID}"`
+/**
+ * Get records from a table, filtering based on the schema.
+ *
+ * For the filter, use keys that match the schema for the table you're querying.
+ *
+ * @example
+ * // Gets bulk delivery routes for July 25th
+ * getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate: new Date("2020-07-25") })
+ *
+ * @param {string} table - The table to query.
+ * @param {Object.<string, any>} filter - The filter to apply, keys should be columns defined in the schema for `table`.
+ */
+async function getRecordsWithFilter(table, filter) {
+  const schema = TABLE_SCHEMAS[table];
+  const clauses = _.map(_.entries(filter), ([key, value]) => {
+    const tableKey = schema[key];
+    if (value instanceof Date) {
+      const yyyymmdd = moment(value).utc().format('YYYY-MM-DD');
+      return `DATESTR({${tableKey}}) = "${yyyymmdd}"`;
+    } else {
+      return `{${tableKey}} = "${value}"`;
+    }
   });
+  const filterByFormula = _.join(clauses, ' AND ');
+  const query = base(table).select({ filterByFormula });
   const records = await query.all();
   return records.map(normalizeRecords(table));
 }
 
+async function getRecordsWithTicketID(table, ticketID) {
+  return await getRecordsWithFilter(table, { ticketID });
+}
+
 async function getRecordsWithStatus(table, status) {
-  const query = base(table).select({
-    filterByFormula: `{Status} = "${status}"`
-  });
-  const records = await query.all();
-  return records.map(normalizeRecords(table));
+  return await getRecordsWithFilter(table, { status });
 }
 
 // Returns only intake tickets whose status has changed since we last checked. If `includeNullStatus`
@@ -93,18 +117,16 @@ async function getRecordsWithStatus(table, status) {
 async function getChangedRecords(table, includeNullStatus = false) {
   // Get all tickets with updated statuses
   const allRecords = await getAllRecords(table);
-  return allRecords.filter(
-    ([, fields, meta]) => {
-      if (_.isNull(fields.status) && Object.keys(meta).length === 0) {
-        return includeNullStatus;
-      } else if (Object.keys(meta).length === 0) {
-        // This is a non-null status, and we haven't written down our meta yet
-        return true;
-      } else {
-        return fields.status !== meta.lastSeenStatus;
-      }
+  return allRecords.filter(([, fields, meta]) => {
+    if (_.isNull(fields.status) && Object.keys(meta).length === 0) {
+      return includeNullStatus;
+    } else if (Object.keys(meta).length === 0) {
+      // This is a non-null status, and we haven't written down our meta yet
+      return true;
+    } else {
+      return fields.status !== meta.lastSeenStatus;
     }
-  );
+  });
 }
 
 async function updateRecord(table, id, delta, meta) {
@@ -135,22 +157,28 @@ async function deleteRecord(table, id) {
 
 function createMessage(phoneNumber, message) {
   // NOTE that we set a `null` status for the record, and let the `onNewInbound` poll function set the status
-  const fields = denormalize({
-    method: 'Text Message',
-    phoneNumber: phoneNumber,
-    message: message,
-  }, INBOUND_SCHEMA);
+  const fields = denormalize(
+    {
+      method: 'Text Message',
+      phoneNumber: phoneNumber,
+      message: message,
+    },
+    INBOUND_SCHEMA
+  );
   return base(INBOUND_TABLE).create([{ fields }]);
 }
 
 function createVoicemail(phoneNumber, recordingUrl, message) {
   // NOTE that we set a `null` status for the record, and let the `onNewInbound` poll function set the status
-  const fields = denormalize({
-    method: 'Phone Call',
-    phoneNumber: phoneNumber,
-    message: message,
-    voicemailRecording: recordingUrl,
-  }, INBOUND_SCHEMA);
+  const fields = denormalize(
+    {
+      method: 'Phone Call',
+      phoneNumber: phoneNumber,
+      message: message,
+      voicemailRecording: recordingUrl,
+    },
+    INBOUND_SCHEMA
+  );
   return base(INBOUND_TABLE).create([{ fields }]);
 }
 
@@ -158,26 +186,27 @@ function createVoicemail(phoneNumber, recordingUrl, message) {
 // handling multiple inbound messages from the same phone number.
 async function getLastNonDuplicate(phoneNumber) {
   const query = base(INBOUND_TABLE).select({
-    filterByFormula: `{${INBOUND_SCHEMA.phoneNumber}} = "${phoneNumber}"`
+    filterByFormula: `{${INBOUND_SCHEMA.phoneNumber}} = "${phoneNumber}"`,
   });
   const records = (await query.all()).map(normalizeRecords(INBOUND_TABLE));
 
   // NOTE that we return `null` if there were no prior inbound records
-  return _.last(
-    _.filter(
-      _.sortBy(
-        records,
-        ([, fields,]) => {
+  return (
+    _.last(
+      _.filter(
+        _.sortBy(records, ([, fields]) => {
           return new Date(fields.dateCreated);
+        }),
+        ([, fields]) => {
+          return (
+            !_.isNull(fields.status) &&
+            fields.status !== INBOUND_STATUSES.duplicate
+          );
         }
-      ),
-      ([, fields,]) => {
-        return !_.isNull(fields.status) && fields.status !== INBOUND_STATUSES.duplicate;
-      },
-    )
-  ) || null;
+      )
+    ) || null
+  );
 }
-
 
 /* VOLUNTEER */
 
@@ -213,12 +242,18 @@ function getTicketDueDate(fields) {
   const dateCreated = new Date(fields.dateCreated);
   const daysAllotted = NEED_IMMEDIACY_TO_DAYS[fields.timeline];
 
-  return new Date(
-    dateCreated.getTime() + daysAllotted * (1000 * 60 * 60 * 24)
-  );
+  return new Date(dateCreated.getTime() + daysAllotted * (1000 * 60 * 60 * 24));
 }
 
 /* BULK ORDER */
+
+async function getItemsByHouseholdSize() {
+  return _.fromPairs(
+    _.map(await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE), ([, fields]) => {
+      return [fields.item, fields];
+    })
+  );
+}
 
 // Returns a bulk order for the provided intake records.
 //
@@ -242,23 +277,27 @@ async function getBulkOrder(records) {
 
   const itemToNumRequested = _.reduce(
     records,
-    (acc, [, fields,]) => {
+    (acc, [, fields]) => {
       const order = _.fromPairs(
-        _.map(
-          fields.foodOptions,
-          (item) => {
-            return [item, _.get(acc, item, 0) + getItemQuantity(item, fields.householdSize)];
-          },
-        )
+        _.map(fields.foodOptions, (item) => {
+          return [
+            item,
+            _.get(acc, item, 0) + getItemQuantity(item, fields.householdSize),
+          ];
+        })
       );
       return _.assign(acc, order);
     },
-    {},
+    {}
   );
 
   if (failedToLookup.length !== 0) {
     // throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
-    console.error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
+    console.error(
+      `Failed to get item by household size for: ${_.join(
+        _.uniq(failedToLookup)
+      )}`
+    );
   }
 
   return itemToNumRequested;
@@ -268,11 +307,13 @@ async function getBulkOrder(records) {
 
 async function _findMetaRecord(key) {
   if (!Object.values(META_STORE_KEYS).includes(key)) {
-    throw Error('The provided key is not a valid key in the meta store', { key: key });
+    throw Error('The provided key is not a valid key in the meta store', {
+      key: key,
+    });
   }
 
   const query = base(META_TABLE).select({
-    filterByFormula: `{Name} = "${key}"`
+    filterByFormula: `{Name} = "${key}"`,
   });
   const records = (await query.all()).map(normalizeRecords(META_TABLE));
 
@@ -326,14 +367,14 @@ class PackingSlip {
     markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
 
     const itemGroups = _.groupBy(_.toPairs(this.provided), ([item]) => {
-      return _.includes(["Bread", "Bananas"], item)
-        ? "Last"
+      return _.includes(['Bread', 'Bananas'], item)
+        ? 'Last'
         : itemToCategory[item];
     });
 
     const categoryOrder = singleCategory
       ? [singleCategory]
-      : ["Non-perishable", "Produce", "Last"];
+      : ['Non-perishable', 'Produce', 'Last'];
 
     const renderTable = (groups, categories) => {
       const numRows = _.max(
@@ -341,26 +382,26 @@ class PackingSlip {
           return _.includes(categories, category) ? items.length : 0;
         })
       );
-      markdown += "| ";
+      markdown += '| ';
       _.forEach(categories, (category) => {
         markdown += ` ${category} |`;
       });
-      markdown += "\n";
+      markdown += '\n';
       _.forEach(categories, () => {
-        markdown += " --- |";
+        markdown += ' --- |';
       });
       for (var i = 0; i < numRows; i++) {
-        markdown += "\n|";
+        markdown += '\n|';
         for (const category of categories) {
           const items = groups[category];
           if (items === undefined || i >= items.length) {
-            markdown += " &nbsp; |";
+            markdown += ' &nbsp; |';
           } else {
             markdown += ` ${items[i][1]} ${items[i][0]} |`;
           }
         }
       }
-      markdown += "\n";
+      markdown += '\n';
     };
     renderTable(itemGroups, categoryOrder);
 
@@ -371,25 +412,25 @@ class PackingSlip {
     ) {
       const otherItems = this.getAdditionalItems();
       if (otherItems.length > 0) {
-        markdown += "\n---\n";
+        markdown += '\n---\n';
 
         const renderOtherTable = (items) => {
           const numCols = 2;
           const numRows = _.ceil(items.length / 2.0);
-          markdown += "| Other |\n| --- |";
+          markdown += '| Other |\n| --- |';
           var i = 0;
           for (var row = 0; row < numRows; row++) {
-            markdown += "\n|";
+            markdown += '\n|';
             for (var col = 0; col < numCols; col++) {
               if (i >= items.length) {
-                markdown += " &nbsp; |";
+                markdown += ' &nbsp; |';
               } else {
                 markdown += ` ${items[i][1]} ${items[i][0]} |`;
                 i++;
               }
             }
           }
-          markdown += "\n";
+          markdown += '\n';
         };
         renderOtherTable(otherItems);
       }
@@ -411,25 +452,30 @@ class PackingSlip {
 
     const customItems = !_.isNull(fields.otherItems)
       ? _.map(
-          _.filter(
-            _.map(fields.otherItems.split(","), (item) => {
-              return item.trim();
-            }),
-            (item) => {
-              return item.length > 0;
-            }
-          ),
+        _.filter(
+          _.map(fields.otherItems.split(','), (item) => {
+            return item.trim();
+          }),
           (item) => {
-            return [item, ""];
+            return item.length > 0;
           }
-        )
+        ),
+        (item) => {
+          return [item, ''];
+        }
+      )
       : [];
 
     return missingItems.concat(customItems);
   }
-};
+}
 
-const getPackingSlips = async (intakeRecords, itemToNumAvailable, bulkDeliveryRoutes, volunteerRecords) => {
+const getPackingSlips = async (
+  intakeRecords,
+  itemToNumAvailable,
+  bulkDeliveryRoutes,
+  volunteerRecords
+) => {
   // Cannot be async, we need to process tickets in a deterministic order.
   const packingSlips = [];
   for (const record of intakeRecords) {
@@ -475,7 +521,12 @@ async function getMeta(key) {
 }
 
 async function storeMeta(key, data) {
-  return await updateRecord(META_TABLE, (await _findMetaRecord(key))[0], {}, data);
+  return await updateRecord(
+    META_TABLE,
+    (await _findMetaRecord(key))[0],
+    {},
+    data
+  );
 }
 
 /* EXPORT */
@@ -500,12 +551,14 @@ module.exports = {
   getLastNonDuplicate: getLastNonDuplicate,
   getMeta: getMeta,
   getRecord: getRecord,
+  getRecordsWithFilter: getRecordsWithFilter,
   getRecordsWithStatus: getRecordsWithStatus,
   getRecordsWithTicketID: getRecordsWithTicketID,
   getTicketDueDate: getTicketDueDate,
   getTicketDueIn: getTicketDueIn,
   getVolunteerSlackID: getVolunteerSlackID,
   getItemToNumAvailable: getItemToNumAvailable,
+  getItemsByHouseholdSize: getItemsByHouseholdSize,
   getPackingSlips: getPackingSlips,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
