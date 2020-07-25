@@ -1,9 +1,12 @@
 const functions = require('firebase-functions');
+const fs = require('fs');
 const _ = require('lodash');
 const yargs = require('yargs');
 
 const { getPackingSlips, getAllRoutes } = require('../airtable');
 const { Email, googleMapsUrl } = require('../messages');
+const moment = require('moment');
+const Mustache = require('mustache');
 
 async function main() {
   const { argv } = yargs
@@ -31,37 +34,19 @@ async function main() {
     })
   );
 
-  const makeEmailForShoppingVolunteer = ([shoppingVolunteer, routes]) => {
+  const getTemplateVariables = ([shoppingVolunteer, routes]) => {
     _.forEach(routes, ([, fields,]) => {
       if (fields.shoppingVolunteerEmail[0] !== shoppingVolunteer) {
         throw new Error(`Mismatched shopping volunteer email, expected ${shoppingVolunteer}, got ${shoppingVolunteerEmail[0]}`);
       }
     });
-    const { shoppingVolunteerEmail, shoppingVolunteerName } = routes[0][1];
-    const firstName = shoppingVolunteerName[0].split(' ')[0];
-    let markdown = `Hi ${firstName},\n\nThank you again for volunteering to shop for these custom items!\n\n`;
-    markdown +=
-      'Please sort the items so that each ticket ID has its own bag or bags, and label each one of the bags with its corresponding **route number and ticket ID**.\n\n';
-    markdown += 'There are a variety of ways you can label the bags:\n\n';
-    markdown +=
-      '1. write the route number and ticket ID on a slip of paper or post-it note and staple or tape it to the bag\n';
-    markdown +=
-      '2. write the route number and ticket ID on a slip of paper or post-it and just set it inside the bag with the groceries\n';
-    markdown +=
-      '3. write the route number and ticket ID directly on the grocery bag(s) with a Sharpie or other pen/marker that won\'t smear or rub off\n\n';
-    markdown += `Please remember to bring at least one pen and some paper with you to the grocery store! We need drivers to drop these items off at the warehouse, **[221 Glenmore Ave, Gate 4](${googleMapsUrl(
-      '221 Glenmore Ave'
-    )}) by 12pm**, so please plan your shopping and a meetup time with your car teammate accordingly.\n\n`;
-    markdown +=
-      'Submit the [reimbursement form](https://airtable.com/shrvHf4k5lRo0I8F4) in the usual way, with the total amount you spent and images of your receipt(s). Just pick one ticket ID from your list and enter that. Please add a note that your reimbursement form is for **custom items shopping for bulk purchasing households on July 25th**.\n\n';
-    markdown += `Thanks so much! Call Jackson at ${
-      functions.config().bulk_ops_team.warehouse_coordinator.phone_number
-    } with any questions!\n\n`;
-    markdown += '# Shopping List\n\n';
-    markdown += '## No Route Number\n\n';
-    markdown += ' - [ ] Chicken: 9 individual 2 pound packs<br/>\n';
-    markdown +=
-      '   Don\'t sort this chicken by ticket, just put all chicken together in a single bag, and hand directly to Hanna or Jackson for cold storage and packing.\n\n';
+    const noRouteSection = {
+      items: [
+        {
+          item: 'Chicken: 9 individual 2 pound packs<br/>\n   Don\'t sort this chicken by ticket, just put all chicken together in a single bag, and hand directly to Hanna or Jackson for cold storage and packing.'
+        }
+      ]
+    };
     const slipsByRoute = _.map(
       _.sortBy(routes, ([, fields]) => fields.name),
       ([, fields]) => {
@@ -74,56 +59,58 @@ async function main() {
         ];
       }
     );
-    _.forEach(slipsByRoute, ([routeName, slips]) => {
-      markdown += `\n## Route ${routeName}\n`;
-      _.forEach(
+    const routeVariables = _.map(slipsByRoute, ([routeName, slips]) => {
+      const allTickets = _.map(
         _.sortBy(slips, (slip) => slip.intakeRecord[1].ticketID),
         (slip) => {
-          const {
-            ticketID,
-            vulnerability,
-            householdSize,
-          } = slip.intakeRecord[1];
+          const { ticketID, vulnerability, householdSize } = slip.intakeRecord[1];
+          const conditions = _.concat([`household size ${householdSize}`], vulnerability);
           const items = _.map(
             _.filter(slip.getAdditionalItems(), ([item]) => {
-              return !(
-                _.endsWith(item, 'art kit') || _.endsWith(item, 'art kits')
-              );
+              return !(_.endsWith(item, 'art kit') || _.endsWith(item, 'art kits'));
             }),
-            ([item, quantity]) => ({
-              item,
-              quantity,
-              ticketID,
-            })
+            ([item, quantity]) => ({ item, quantity })
           );
-          if (items.length !== 0) {
-            const conditions = _.join(
-              _.concat([`household size ${householdSize}`], vulnerability),
-              ', '
-            );
-            markdown += `\n**Ticket ${ticketID}** (${conditions})\n\n`;
-            _.forEach(items, ({ quantity, item }) => {
-              if (quantity !== '') {
-                markdown += ` - [ ] ${quantity} ${item}\n`;
-              } else {
-                markdown += ` - [ ] ${item}\n`;
-              }
-            });
-            markdown += '\n---\n';
-          }
+          return { ticketID, conditions: _.join(conditions, ', '), items };
         }
       );
+      const tickets = _.filter(allTickets, ({ items }) => items.length > 0);
+      return { name: routeName, tickets };
     });
 
-    return new Email(markdown, {
+    const { shoppingVolunteerEmail, shoppingVolunteerName } = routes[0][1];
+    const firstName = shoppingVolunteerName[0].split(' ')[0];
+    const deliveryDateString = moment(argv.deliveryDate).utc().format('MMMM Do');
+    const warehouseMapsUrl = googleMapsUrl('221 Glenmore Ave');
+    const warehouseCoordinatorPhone = functions.config().bulk_ops_team.warehouse_coordinator.phone_number;
+
+    return {
       to: shoppingVolunteerEmail,
+      firstName,
+      deliveryDateString,
+      warehouseMapsUrl,
+      warehouseCoordinatorPhone,
+      noRouteSection,
+      routes: routeVariables,
+    };
+  };
+
+  const views = _.map(_.entries(routesByShopper), getTemplateVariables);
+
+  const template = (await fs.promises.readFile('functions/templates/bulk-shopping-volunteer-email.md.mustache')).toString('utf-8');
+
+  const makeEmails = (view) => {
+    const markdown = Mustache.render(template, view);
+
+    return new Email(markdown, {
+      to: view.to,
       cc: 'operations+bulk@bedstuystrong.com',
       replyTo: 'operations+bulk@bedstuystrong.com',
-      subject: `[BSS Bulk Ordering] July 25th Delivery Prep and Instructions for ${firstName}`,
+      subject: `[BSS Bulk Ordering] ${view.deliveryDateString} Delivery Prep and Instructions for ${view.firstName}`,
     });
   };
 
-  const emails = _.map(_.entries(routesByShopper), makeEmailForShoppingVolunteer);
+  const emails = _.map(views, makeEmails);
 
   if (argv.dryRun) {
     _.forEach(emails, (email) => console.log(email.render()));
