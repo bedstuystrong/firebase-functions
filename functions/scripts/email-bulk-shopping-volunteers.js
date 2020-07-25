@@ -1,12 +1,12 @@
 const functions = require('firebase-functions');
 const fs = require('fs');
 const _ = require('lodash');
+const moment = require('moment');
+const Mustache = require('mustache');
 const yargs = require('yargs');
 
 const { getPackingSlips, getAllRoutes } = require('../airtable');
 const { Email, googleMapsUrl } = require('../messages');
-const moment = require('moment');
-const Mustache = require('mustache');
 
 async function main() {
   const { argv } = yargs
