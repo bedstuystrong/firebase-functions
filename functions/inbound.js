@@ -97,7 +97,7 @@ module.exports = {
 
     await requestConnectCall(volunteerPhoneNumber, recordPhoneNumber);
 
-    res.status(200).send(`Hi ${volunteerFields.name}! You'll get a call from Bed-Stuy Strong shortly connecting you to ${recordPhoneNumber}`);
+    res.status(200).send(`You'll get a call at ${volunteerFields.phoneNumber} from Bed-Stuy Strong shortly connecting you to ${recordFields.phoneNumber}`);
   }),
 
 };
