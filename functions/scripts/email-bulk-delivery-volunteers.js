@@ -58,7 +58,7 @@ You'll load your car with boxes for the above ticket IDs, and then deliver them 
 
 The neighbors you're delivering to have confirmed their availability for 1:30-4pm, but you'll call each of them before you leave the warehouse, to get any last minute delivery details. 
 
-If possible, we recommend printing this email out so you can mark tickets done as you complete them, to fill out the [Completion Form](https://airtable.com/shrvHf4k5lRo0I8F4) at the end. If any issues come up during your deliveries, or you are unable to deliver any of the boxes (because someone isn't home) contact Jackson at (410) 402-3236. We'll help you redistribute the food to the community in another way. 
+If possible, we recommend printing this email out so you can mark tickets done as you complete them, to fill out the [Completion Form](https://airtable.com/shrvHf4k5lRo0I8F4) at the end. If any issues come up during your deliveries, or you are unable to deliver any of the boxes (because someone isn't home) contact Jackson at ${functions.config().bulk_ops_team.warehouse_coordinator.phone_number}. We'll help you redistribute the food to the community in another way.
 
 ### Checklist
 - [ ] Check in with Hanna or Jackson at the warehouse when you arrive. They'll let you know when your boxes are ready. While you're waiting:

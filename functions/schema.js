@@ -102,9 +102,14 @@ const BULK_ORDER_SCHEMA = {
 const BULK_DELIVERY_ROUTES_SCHEMA = {
   name: 'Name',
   intakeTickets: 'Intake Tickets',
-  deliveryVolunteer: 'Volunteer',
+  deliveryVolunteer: 'Delivery Volunteer',
+  deliveryVolunteerEmail: 'Delivery Volunteer Email Address',
+  deliveryVolunteerName: 'Delivery Volunteer Name',
   deliveryDate: 'Delivery Date',
   arrivalTime: 'Warehouse Arrival Time',
+  shoppingVolunteer: 'Shopping Volunteer',
+  shoppingVolunteerEmail: 'Shopping Volunteer Email Address',
+  shoppingVolunteerName: 'Shopping Volunteer Name',
 };
 
 const INBOUND_STATUSES = {

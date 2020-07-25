@@ -228,12 +228,7 @@ function getTicketDueDate(fields) {
 // - Adjust structured items for household size
 // - Generate item to quanitity mapping
 async function getBulkOrder(records) {
-  const itemsByHouseholdSize = _.fromPairs(
-    _.map(
-      await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
-      ([, fields,]) => { return [fields.item, fields]; },
-    ),
-  );
+  const itemsByHouseholdSize = await getItemsByHouseholdSize();
 
   const failedToLookup = [];
 
@@ -290,6 +285,190 @@ async function _findMetaRecord(key) {
   return records[0];
 }
 
+const getItemToNumAvailable = async (bulkOrderRecords) => {
+  return _.fromPairs(
+    _.map(bulkOrderRecords, ([, fields]) => {
+      return [fields.item, fields.quantity];
+    })
+  );
+};
+
+class PackingSlip {
+  constructor(
+    intakeRecord,
+    requested,
+    provided,
+    bulkDeliveryRoutes,
+    volunteerRecords
+  ) {
+    this.intakeRecord = intakeRecord;
+    this.requested = requested;
+    this.provided = provided;
+    this.bulkDeliveryRoutes = bulkDeliveryRoutes;
+    this.volunteerRecords = volunteerRecords;
+  }
+
+  getMarkdown(itemToCategory, singleCategory, slipNumber) {
+    const fields = this.intakeRecord[1];
+
+    const [, bulkRoute] = _.find(this.bulkDeliveryRoutes, ([id, ,]) => {
+      return id === fields.bulkRoute[0];
+    });
+    const [, volunteer] = _.find(this.volunteerRecords, ([id, ,]) => {
+      return id === bulkRoute.deliveryVolunteer[0];
+    });
+
+    let markdown = `# **${fields.ticketID}** (Route ${bulkRoute.name}): ${
+      fields.requestName
+    } (${fields.nearestIntersection.trim()})\n\n`;
+
+    markdown += `**Delivery**: ${volunteer.Name}\n\n`;
+    markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
+
+    const itemGroups = _.groupBy(_.toPairs(this.provided), ([item]) => {
+      return _.includes(["Bread", "Bananas"], item)
+        ? "Last"
+        : itemToCategory[item];
+    });
+
+    const categoryOrder = singleCategory
+      ? [singleCategory]
+      : ["Non-perishable", "Produce", "Last"];
+
+    const renderTable = (groups, categories) => {
+      const numRows = _.max(
+        _.map(_.toPairs(groups), ([category, items]) => {
+          return _.includes(categories, category) ? items.length : 0;
+        })
+      );
+      markdown += "| ";
+      _.forEach(categories, (category) => {
+        markdown += ` ${category} |`;
+      });
+      markdown += "\n";
+      _.forEach(categories, () => {
+        markdown += " --- |";
+      });
+      for (var i = 0; i < numRows; i++) {
+        markdown += "\n|";
+        for (const category of categories) {
+          const items = groups[category];
+          if (items === undefined || i >= items.length) {
+            markdown += " &nbsp; |";
+          } else {
+            markdown += ` ${items[i][1]} ${items[i][0]} |`;
+          }
+        }
+      }
+      markdown += "\n";
+    };
+    renderTable(itemGroups, categoryOrder);
+
+    if (
+      !singleCategory &&
+      (!_.isNull(fields.otherItems) ||
+        !_.isEqual(this.provided, this.requested))
+    ) {
+      const otherItems = this.getAdditionalItems();
+      if (otherItems.length > 0) {
+        markdown += "\n---\n";
+
+        const renderOtherTable = (items) => {
+          const numCols = 2;
+          const numRows = _.ceil(items.length / 2.0);
+          markdown += "| Other |\n| --- |";
+          var i = 0;
+          for (var row = 0; row < numRows; row++) {
+            markdown += "\n|";
+            for (var col = 0; col < numCols; col++) {
+              if (i >= items.length) {
+                markdown += " &nbsp; |";
+              } else {
+                markdown += ` ${items[i][1]} ${items[i][0]} |`;
+                i++;
+              }
+            }
+          }
+          markdown += "\n";
+        };
+        renderOtherTable(otherItems);
+      }
+    }
+
+    return markdown;
+  }
+
+  getAdditionalItems() {
+    const fields = this.intakeRecord[1];
+    const missingItems = _.filter(
+      _.map(_.toPairs(this.requested), ([item, numRequested]) => {
+        return [item, numRequested - _.get(this.provided, item, 0)];
+      }),
+      ([, diff]) => {
+        return diff !== 0;
+      }
+    );
+
+    const customItems = !_.isNull(fields.otherItems)
+      ? _.map(
+          _.filter(
+            _.map(fields.otherItems.split(","), (item) => {
+              return item.trim();
+            }),
+            (item) => {
+              return item.length > 0;
+            }
+          ),
+          (item) => {
+            return [item, ""];
+          }
+        )
+      : [];
+
+    return missingItems.concat(customItems);
+  }
+};
+
+const getPackingSlips = async (intakeRecords, itemToNumAvailable, bulkDeliveryRoutes, volunteerRecords) => {
+  // Cannot be async, we need to process tickets in a deterministic order.
+  const packingSlips = [];
+  for (const record of intakeRecords) {
+    const itemToNumRequested = await getBulkOrder([record]);
+
+    const itemToNumProvided = _.fromPairs(
+      _.filter(
+        _.map(_.toPairs(itemToNumRequested), ([item, numRequested]) => {
+          return [item, _.min([numRequested, itemToNumAvailable[item] || 0])];
+        }),
+        ([, numProvided]) => {
+          return numProvided !== 0;
+        }
+      )
+    );
+
+    // Update the num available for the bulk items we are providing for this ticket
+    _.assign(
+      itemToNumAvailable,
+      _.fromPairs(
+        _.map(_.toPairs(itemToNumProvided), ([item, numProvided]) => {
+          return [item, itemToNumAvailable[item] - numProvided];
+        })
+      )
+    );
+
+    packingSlips.push(
+      new PackingSlip(
+        record,
+        itemToNumRequested,
+        itemToNumProvided,
+        bulkDeliveryRoutes,
+        volunteerRecords
+      )
+    );
+  }
+  return Promise.resolve(packingSlips);
+};
+
 // Gets a meta object stored in the `_meta` table
 async function getMeta(key) {
   return (await _findMetaRecord(key))[2];
@@ -326,6 +505,8 @@ module.exports = {
   getTicketDueDate: getTicketDueDate,
   getTicketDueIn: getTicketDueIn,
   getVolunteerSlackID: getVolunteerSlackID,
+  getItemToNumAvailable: getItemToNumAvailable,
+  getPackingSlips: getPackingSlips,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
 };
