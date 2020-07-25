@@ -303,36 +303,46 @@ async function getBulkOrder(records) {
   return itemToNumRequested;
 }
 
-/* META */
-
-async function _findMetaRecord(key) {
-  if (!Object.values(META_STORE_KEYS).includes(key)) {
-    throw Error('The provided key is not a valid key in the meta store', {
-      key: key,
-    });
-  }
-
-  const query = base(META_TABLE).select({
-    filterByFormula: `{Name} = "${key}"`,
-  });
-  const records = (await query.all()).map(normalizeRecords(META_TABLE));
-
-  if (records.length === 0) {
-    throw Error('Did not find a meta entry', { key: key });
-  } else if (records.length > 1) {
-    throw Error('Found duplicate meta entries', { key: key });
-  }
-
-  return records[0];
-}
-
-const getItemToNumAvailable = async (bulkOrderRecords) => {
+async function getItemToNumAvailable(deliveryDate) {
+  const bulkOrderRecords = await getRecordsWithFilter(BULK_ORDER_TABLE, { deliveryDate });
   return _.fromPairs(
     _.map(bulkOrderRecords, ([, fields]) => {
       return [fields.item, fields.quantity];
     })
   );
-};
+}
+
+async function getAllRoutes(deliveryDate) {
+  const allRoutes = await getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate });
+  const routesWithoutShopper = _.filter(allRoutes, ([, fields]) => {
+    return (
+      fields.shoppingVolunteer === null || fields.shoppingVolunteer.length !== 1
+    );
+  });
+  if (routesWithoutShopper.length > 0) {
+    const msg = 'Some routes are missing a shopping volunteer';
+    console.error(msg, _.map(routesWithoutShopper, ([, fields]) => {
+      return fields.name;
+    }));
+    throw new Error(msg);
+  }
+  return allRoutes;
+}
+
+function getTicketsForRoute([, fields]) {
+  return _.map(fields.intakeTickets, (ticketRef) => {
+    return getRecord(INTAKE_TABLE, ticketRef);
+  });
+}
+
+async function getTicketsForRoutes(allRoutes) {
+  return _.sortBy(
+    await Promise.all(_.flatMap(allRoutes, getTicketsForRoute)),
+    ([, fields]) => {
+      return fields.ticketID;
+    }
+  );
+}
 
 class PackingSlip {
   constructor(
@@ -470,12 +480,13 @@ class PackingSlip {
   }
 }
 
-const getPackingSlips = async (
-  intakeRecords,
-  itemToNumAvailable,
-  bulkDeliveryRoutes,
-  volunteerRecords
-) => {
+async function getPackingSlips(allRoutes, deliveryDate) {
+  const intakeRecords = await getTicketsForRoutes(allRoutes);
+
+  const itemToNumAvailable = await getItemToNumAvailable(deliveryDate);
+
+  const volunteerRecords = await getAllRecords(VOLUNTEER_FORM_TABLE);
+
   // Cannot be async, we need to process tickets in a deterministic order.
   const packingSlips = [];
   for (const record of intakeRecords) {
@@ -507,13 +518,36 @@ const getPackingSlips = async (
         record,
         itemToNumRequested,
         itemToNumProvided,
-        bulkDeliveryRoutes,
+        allRoutes,
         volunteerRecords
       )
     );
   }
   return Promise.resolve(packingSlips);
-};
+}
+
+/* META */
+
+async function _findMetaRecord(key) {
+  if (!Object.values(META_STORE_KEYS).includes(key)) {
+    throw Error('The provided key is not a valid key in the meta store', {
+      key: key,
+    });
+  }
+
+  const query = base(META_TABLE).select({
+    filterByFormula: `{Name} = "${key}"`,
+  });
+  const records = (await query.all()).map(normalizeRecords(META_TABLE));
+
+  if (records.length === 0) {
+    throw Error('Did not find a meta entry', { key: key });
+  } else if (records.length > 1) {
+    throw Error('Found duplicate meta entries', { key: key });
+  }
+
+  return records[0];
+}
 
 // Gets a meta object stored in the `_meta` table
 async function getMeta(key) {
@@ -559,6 +593,8 @@ module.exports = {
   getVolunteerSlackID: getVolunteerSlackID,
   getItemToNumAvailable: getItemToNumAvailable,
   getItemsByHouseholdSize: getItemsByHouseholdSize,
+  getAllRoutes: getAllRoutes,
+  getTicketsForRoutes: getTicketsForRoutes,
   getPackingSlips: getPackingSlips,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
