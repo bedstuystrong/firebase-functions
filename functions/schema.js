@@ -25,7 +25,6 @@ const INTAKE_SCHEMA = {
   status: STATUS,
   intakeVolunteer: 'Intake Volunteer - This is you!',
   deliveryVolunteer: 'Delivery Volunteer',
-  bulkCallbackVolunteer: 'Bulk Callback Volunteer',
   neighborhood: 'Neighborhood',
   requestName: 'Requestor First Name and Last Initial',
   timeline: 'Need immediacy',
@@ -66,7 +65,6 @@ const REIMBURSEMENT_SCHEMA = {
 
 const VOLUNTEER_SCHEMA = {
   status: STATUS,
-  name: 'Name',
   email: 'Email Address',
   slackUserID: 'Slack User ID',
   slackEmail: 'Email Address (from Slack)',
