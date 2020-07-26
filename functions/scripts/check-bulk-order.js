@@ -1,30 +1,34 @@
 const _ = require('lodash');
+const yargs = require('yargs');
 
 const {
-  BULK_ORDER_TABLE,
   INTAKE_TABLE,
-  getAllRecords,
   getRecordsWithStatus,
   getBulkOrder,
+  getItemToNumAvailable,
 } = require('../airtable');
 
 async function main() {
+  const { argv } = yargs
+    .option('deliveryDate', {
+      coerce: (x) => new Date(x),
+      demandOption: true,
+      describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
+    });
+
+  // Note: we compare our bulk order against all tickets with this status,
+  // rather than finding tickets based on what's in a bulk delivery route,
+  // because we may run this before creating the routes.
   const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
 
   const itemToNumRequested = await getBulkOrder(intakeRecords);
 
-  const bulkOrderRecords = await getAllRecords(BULK_ORDER_TABLE);
-  const itemToNumOrdered = _.fromPairs(
-    _.map(
-      bulkOrderRecords,
-      ([, fields,]) => { return [fields.item, fields.quantity]; },
-    )
-  );
+  const itemToNumOrdered = await getItemToNumAvailable(argv.deliveryDate);
 
   const allItems = _.union(_.keys(itemToNumRequested), _.keys(itemToNumOrdered));
-  
+
   const getDiffForItem = (item) => {
     return [item, _.get(itemToNumOrdered, item, 0) - _.get(itemToNumRequested, item, 0)];
   };
@@ -37,9 +41,9 @@ async function main() {
     )
   );
 
-  console.log(`Found ${delta.length} items with mismatched quantities.`);
+  console.log(`Found ${_.keys(delta).length} items with mismatched quantities.`);
 
-  if (delta.length !== 0) {
+  if (_.keys(delta).length !== 0) {
     console.log('Mismatched Items and Differences (num ordered - num requested)');
     _.forIn(
       delta,

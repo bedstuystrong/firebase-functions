@@ -45,6 +45,7 @@ const INTAKE_SCHEMA = {
   costCategory: 'cost_category',
   foodOptions: 'Food Options',
   otherItems: 'Other Items',
+  bulkRoute: 'Bulk Delivery Route',
 };
 
 const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
@@ -98,6 +99,19 @@ const BULK_ORDER_SCHEMA = {
   deliveryDate: 'Bulk Delivery Date',
 };
 
+const BULK_DELIVERY_ROUTES_SCHEMA = {
+  name: 'Name',
+  intakeTickets: 'Intake Tickets',
+  deliveryVolunteer: 'Delivery Volunteer',
+  deliveryVolunteerEmail: 'Delivery Volunteer Email Address',
+  deliveryVolunteerName: 'Delivery Volunteer Name',
+  deliveryDate: 'Delivery Date',
+  arrivalTime: 'Warehouse Arrival Time',
+  shoppingVolunteer: 'Shopping Volunteer',
+  shoppingVolunteerEmail: 'Shopping Volunteer Email Address',
+  shoppingVolunteerName: 'Shopping Volunteer Name',
+};
+
 const INBOUND_STATUSES = {
   intakeNeeded: 'Intake Needed',
   inProgress: 'In Progress',
@@ -136,8 +150,9 @@ const denormalize = (object, schema) => {
 };
 
 module.exports = {
-  BULK_ORDER_SCHEMA,
+  BULK_DELIVERY_ROUTES_SCHEMA,
   BULK_DELIVERY_STATUSES,
+  BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
   INTAKE_SCHEMA,

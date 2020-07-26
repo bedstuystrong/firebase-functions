@@ -1,192 +1,162 @@
 const fs = require('fs');
-const { Readable, finished } = require('stream');
 
 const _ = require('lodash');
 const markdownpdf = require('markdown-pdf');
 const pdfmerge = require('easy-pdf-merge');
 const util = require('util');
+const yargs = require('yargs');
 
 const {
-  BULK_ORDER_TABLE,
-  INTAKE_TABLE,
-  ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
-  getAllRecords,
-  getRecordsWithStatus,
-  getBulkOrder,
+  reconcileOrders,
+  // eslint-disable-next-line no-unused-vars
+  ReconciledOrder,
 } = require('../airtable');
 
-class PackingSlip {
-  constructor(intakeRecord, requested, provided) {
-    this.intakeRecord = intakeRecord;
-    this.requested = requested;
-    this.provided = provided;
-  }
+/**
+ * Render one packing slip for this order.
+ * @param {ReconciledOrder} order Reconciled order
+ * @param {string | null} singleCategory Render one category, or all others
+ * @param {number} slipNumber Which slip number this is
+ * @returns {string} markdown for this packing slip
+ */
+function renderPackingSlip(order, singleCategory, slipNumber) {
+  const itemGroups = order.bulkPurchasedItemsByGroup();
 
-  getMarkdown(itemToCategory) {
-    const fields = this.intakeRecord[1];
+  const fields = order.intakeRecord[1];
 
-    let markdown = `# **${fields.ticketID}**: ${fields.requestName} (${fields.nearestIntersection})\n\n`;
+  let markdown = `# **${fields.ticketID}** (Route ${order.bulkDeliveryRoute.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
 
-    _.forEach(
-      _.toPairs(
-        _.groupBy(
-          _.toPairs(this.provided),
-          ([item,]) => { return itemToCategory[item]; },
-        )
-      ),
-      ([category, provided]) => {
-        markdown += `### **${category}**:\n`;
-        _.forEach(
-          provided,
-          ([item, numProvided]) => {
-            markdown += `- ${numProvided} ${item}\n`;
-          }
-        );
-        markdown += '\n';
-      },
+  markdown += `**Delivery**: ${order.volunteer.Name}\n\n`;
+  markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
+
+  const categoryOrder = singleCategory
+    ? [singleCategory]
+    : ['Non-perishable', 'Produce', 'Last'];
+
+  const renderTable = (groups, categories) => {
+    const numRows = _.max(
+      _.map(_.toPairs(groups), ([category, items]) => {
+        return _.includes(categories, category) ? items.length : 0;
+      })
     );
-
-    if (!_.isNull(fields.otherItems) || !_.isEqual(this.provided, this.requested)) {
-      markdown += '\n---\n';
-      markdown += '## **Other** (Provided By Bed-Stuy Strong!):\n';
-
-      if (!_.isEqual(this.provided, this.requested)) {
-        markdown += '### Missing:\n';
-
-        const missing = _.filter(
-          _.map(
-            _.toPairs(this.requested),
-            ([item, numRequested]) => {
-              return [item, numRequested - _.get(this.provided, item, 0)];
-            },
-          ),
-          ([, diff]) => { return diff !== 0; },
-        );
-
-        _.forEach(
-          missing,
-          ([item, numMissing]) => {
-            markdown += `- ${numMissing} ${item}\n`;
-          }
-        );
-      }
-
-      if (!_.isNull(fields.otherItems)) {
-        markdown +=  `### Custom Items: ${fields.otherItems}\n`;
+    markdown += '| ';
+    _.forEach(categories, (category) => {
+      markdown += ` ${category} |`;
+    });
+    markdown += '\n';
+    _.forEach(categories, () => {
+      markdown += ' --- |';
+    });
+    for (var i = 0; i < numRows; i++) {
+      markdown += '\n|';
+      for (const category of categories) {
+        const items = groups[category];
+        if (items === undefined || i >= items.length) {
+          markdown += ' &nbsp; |';
+        } else {
+          markdown += ` ${items[i][1]} ${items[i][0]} |`;
+        }
       }
     }
+    markdown += '\n';
+  };
+  renderTable(itemGroups, categoryOrder);
 
-    return markdown;
+  if (!singleCategory && (!_.isNull(fields.otherItems) || !_.isEqual(order.provided, order.requested))) {
+    const otherItems = order.getAdditionalItems();
+    if (otherItems.length > 0) {
+      markdown += '\n---\n';
+
+      /**
+       * @param {[{ item: string, quantity: number | null }]} items List of
+       * items to purchase.
+       */
+      const renderOtherTable = (items) => {
+        const numCols = 2;
+        const numRows = _.ceil(items.length / 2.0);
+        markdown += '| Other |\n| --- |';
+        var i = 0;
+        for (var row = 0; row < numRows; row++) {
+          markdown += '\n|';
+          for (var col = 0; col < numCols; col++) {
+            if (i >= items.length) {
+              markdown += ' &nbsp; |';
+            } else {
+              markdown += ` ${items[i].quantity || ''} ${items[i].item} |`;
+              i++;
+            }
+          }
+        }
+        markdown += '\n';
+      };
+      renderOtherTable(otherItems);
+    }
   }
+
+  return markdown;
 }
 
-async function savePackingSlips(packingSlips) {
-  const itemToCategory = _.fromPairs(
-    _.map(
-      await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
-      ([, fields,]) => { return [fields.item, fields.category]; },
-    )
-  );
+/**
+ * Render packing slips into one PDF file.
+ * @param {ReconciledOrder[]} orders orders to render
+ * @returns {Promise<string>} Path PDF was written to.
+ */
+async function savePackingSlips(orders) {
+  try {
+    await fs.promises.mkdir('out/');
+  } catch (e) {
+    if (e.code !== 'EEXIST') {
+      throw e;
+    }
+  }
 
-  // TODO : remove the out directory
+  const PDF = markdownpdf({
+    paperFormat: 'A3',
+    cssPath: 'functions/scripts/packing-slips.css',
+    paperOrientation: 'portait',
+  });
 
-  await fs.promises.mkdir('out/');
-
-  const outPaths = await Promise.all(
-    _.map(
-      packingSlips,
-      async (slip) => {
-        const outPath = `out/${slip.intakeRecord[1].ticketID}.pdf`;
-
-        // NOTE that I used A3 page size here (which is longer than A4) to ensure 
-        // that we didn't use two pages for one ticket
-        const stream = Readable.from([slip.getMarkdown(itemToCategory)]).pipe(
-          markdownpdf({paperFormat: 'A3'})
-        ).pipe(fs.createWriteStream(outPath));
-        await util.promisify(finished)(stream);
-
-        return outPath;
-      },
-    )
-  );
+  // Three sheets, one with Cleaning Bundle, one Fridge / Frozen, one with
+  // everything else.
+  const sheetCategories = [null, 'Cleaning Bundle', 'Fridge / Frozen'];
+  const outPaths = await Promise.all(_.flatMap(orders, (order) => {
+    return _.map(sheetCategories, async (category, i) => {
+      const markdown = renderPackingSlip(order, category, i);
+      const stream = PDF.from.string(markdown);
+      const outPath = `out/${order.intakeRecord[1].ticketID}-${i}.pdf`;
+      // @ts-ignore stream.to.path's callback isn't of the right type for
+      // promisify
+      await util.promisify(stream.to.path)(outPath);
+      return outPath;
+    });
+  }));
 
   const mergedOutPath = 'out/packing_slips.pdf';
-
+  // @ts-ignore pdfmerge's callback isn't of the right type for promisify
   await util.promisify(pdfmerge)(outPaths, mergedOutPath);
 
-  // TODO : do the collating and conversation to A4 page size here
+  await Promise.all(_.map(outPaths, (path) => {
+    return fs.promises.unlink(path);
+  }));
 
   return mergedOutPath;
 }
 
 async function main() {
-  const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
+  const { argv } = yargs.option('deliveryDate', {
+    coerce: (x) => new Date(x),
+    demandOption: true,
+    describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
+  });
 
-  console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
-
-  const bulkOrderRecords = await getAllRecords(BULK_ORDER_TABLE);
-
-  const itemToNumAvailable = _.fromPairs(
-    _.map(
-      bulkOrderRecords,
-      ([, fields,]) => { return [fields.item, fields.quantity]; },
-    )
-  );
-
-  const packingSlips = await Promise.all(
-    _.map(
-      intakeRecords,
-      async (record) => {
-        const itemToNumRequested = await getBulkOrder([record]);
-
-        const itemToNumProvided = _.fromPairs(
-          _.filter(
-            _.map(
-              _.toPairs(itemToNumRequested),
-              ([item, numRequested]) => {
-                return [item, _.min([numRequested, itemToNumAvailable[item]])];
-              }
-            ),
-            ([, numProvided]) => {
-              return numProvided !== 0;
-            }
-          ),
-        );
-
-        // Update the num available for the bulk items we are providing for this ticket
-        _.assign(
-          itemToNumAvailable,
-          _.fromPairs(
-            _.map(
-              _.toPairs(itemToNumProvided),
-              ([item, numProvided]) => { return [item, itemToNumAvailable[item] - numProvided]; },
-            )
-          )
-        );
-
-        return new PackingSlip(record, itemToNumRequested, itemToNumProvided);
-      },
-    )
-  );
-
-  _.forIn(
-    _.toPairs(itemToNumAvailable),
-    ([item, numAvailable]) => {
-      if (numAvailable < 0) {
-        throw Error(`Accounting for ${item} was off, found ${numAvailable} leftovers`);
-      }
-    },
-  );
+  const orders = await reconcileOrders(argv.deliveryDate);
 
   console.log('Creating packing slips...');
 
-  const outPath = await savePackingSlips(packingSlips);
-
-  console.log(`Merged packing slips: ${outPath}`);
+  const outPath = await savePackingSlips(orders);
+  console.log('Wrote packing slips to', outPath);
 }
 
-main().then(
-  () => console.log('Done.')
-).catch(
-  (err) => console.log('Error!', { err: err })
-);
+main()
+  .then(() => console.log('Done.'))
+  .catch((err) => console.log('Error!', { err: err }));
