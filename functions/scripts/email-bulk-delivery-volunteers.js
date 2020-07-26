@@ -1,50 +1,17 @@
 const functions = require('firebase-functions');
 const _ = require('lodash');
 const sgMail = require('@sendgrid/mail');
-const showdown  = require('showdown');
+const showdown = require('showdown');
 const yargs = require('yargs');
 
 sgMail.setApiKey(functions.config().sendgrid.api_key);
 
-const { INTAKE_TABLE, VOLUNTEER_FORM_TABLE, getRecord, getRecordsWithStatus, getAllRecords, BULK_DELIVERY_ROUTES_TABLE } = require('../airtable');
+const { getAllRoutes, getTicketsForRoutes, getRecordsWithFilter, BULK_DELIVERY_ROUTES_TABLE } = require('../airtable');
+const { googleMapsUrl } = require('../messages');
 
-const googleMapsUrl = (address) => (
-  `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURI(address + ', Brooklyn, NY')}`
-);
-
-async function getBulkDeliveryConfirmedTickets() {
-  return await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
-}
-
-function getBulkRoute([, fields,]) {
-  if (fields.bulkRoute.length !== 1) {
-    throw new Error(`Ticket ${fields} does not have one Bulk Route`);
-  }
-  return fields.bulkRoute[0];
-}
-
-function groupTicketsByRoute(tickets) {
-  return _.groupBy(tickets, getBulkRoute);
-}
-
-async function getDeliveryVolunteerInfo(routeId, tickets) {
-  const volunteerIds = _.union(
-    _.flatMap(tickets, ([, fields,]) => {
-      if (!fields.deliveryVolunteer || fields.deliveryVolunteer.length !== 1) {
-        throw new Error(`Ticket ${fields.ticketID} doesn't have exactly one volunteer: ${fields.deliveryVolunteer}`);
-      }
-      return fields.deliveryVolunteer;
-    })
-  );
-  if (volunteerIds.length !== 1) {
-    throw new Error(`Route ${routeId} doesn't have exactly one delivery volunteer: ${volunteerIds}`);
-  }
-  return await getRecord(VOLUNTEER_FORM_TABLE, volunteerIds[0]);
-}
-
-function renderEmail({ route, tickets, volunteer }) {
+function renderEmail(route, tickets) {
   var email = `
-Hi ${volunteer.Name.split(' ')[0]}!
+Hi ${route.deliveryVolunteerName[0].split(' ')[0]}!
 
 Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy Strong!
 
@@ -109,11 +76,11 @@ If possible, we recommend printing this email out so you can mark tickets done a
   const html = converter.makeHtml(email);
 
   const msg = {
-    to: volunteer.email,
+    to: route.deliveryVolunteerEmail,
     cc: 'operations+bulk@bedstuystrong.com',
     replyTo: 'operations+bulk@bedstuystrong.com',
     from: functions.config().sendgrid.from,
-    subject: `[BSS Bulk Ordering] July 25th Delivery Prep and Instructions for ${volunteer.Name.split(' ')[0]}`,
+    subject: `[BSS Bulk Ordering] July 25th Delivery Prep and Instructions for ${route.deliveryVolunteerName[0].split(' ')[0]}`,
     text: email,
     html: html,
   };
@@ -136,35 +103,27 @@ async function sendEmail(msg) {
 
 async function main() {
   const { argv } = yargs
+    .option('deliveryDate', {
+      coerce: (x) => new Date(x),
+      demandOption: true,
+      describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
+    })
     .option('route', {
+      coerce: String,
       demandOption: false,
       describe: 'Email just one delivery volunteer for a specific route ID',
       type: 'string',
     })
     .boolean('dry-run');
-  const allRoutes = await getAllRecords(BULK_DELIVERY_ROUTES_TABLE);
-  const allBulkTickets = await getBulkDeliveryConfirmedTickets();
-  const bulkTickets = argv.route ? _.filter(
-    allBulkTickets,
-    (ticket) => {
-      const routeId = getBulkRoute(ticket);
-      const route = _.find(allRoutes, ([id,,]) => { return id === routeId; });
-      return route[1].name === String(argv.route);
-    }
-  ) : allBulkTickets;
-  const routes = groupTicketsByRoute(bulkTickets);
-  const getRoute = (routeId) => {
-    const [, fields,] = _.find(allRoutes, ([id,,]) => { return id === routeId; });
-    return fields;
-  };
-  const assignedRoutes = await Promise.all(_.map(_.entries(routes), async ([routeId, ticketRecords]) => (
-    {
-      tickets: _.map(ticketRecords, ([, fields,]) => fields),
-      volunteer: (await getDeliveryVolunteerInfo(routeId, ticketRecords))[1],
-      route: getRoute(routeId),
-    }
-  )));
-  const emails = _.map(assignedRoutes, renderEmail);
+  const routes = argv.route ? (
+    await getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate: argv.deliveryDate, name: argv.route })
+  ) : await getAllRoutes(argv.deliveryDate);
+  const emails = await Promise.all(_.map(routes, async (route) => {
+    const ticketRecords = await getTicketsForRoutes([route]);
+    const ticketsFields = _.map(ticketRecords, ([, fields,]) => fields);
+    const [, routeFields,] = route;
+    return renderEmail(routeFields, ticketsFields);
+  }));
   if (argv.dryRun) {
     console.log(emails);
   } else {

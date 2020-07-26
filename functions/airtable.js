@@ -112,7 +112,7 @@ async function getRecordsWithFilter(table, filter) {
       return `{${tableKey}} = "${value}"`;
     }
   });
-  const filterByFormula = _.join(clauses, ' AND ');
+  const filterByFormula = `AND(${_.join(clauses, ', ')})`;
   const query = base(table).select({ filterByFormula });
   const records = await query.all();
   return records.map(normalizeRecords(table));

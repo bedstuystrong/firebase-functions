@@ -22,9 +22,7 @@ const safetyReminder =
   'Reminder: Please don’t volunteer for delivery if you have any COVID-19/cold/flu-like symptoms, or have come into contact with someone that’s tested positive.';
 
 function googleMapsUrl(address) {
-  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURI(
-    address + ', Brooklyn, NY'
-  )}`;
+  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURI(`${address}, Brooklyn, NY`)}`;
 }
 
 /**
