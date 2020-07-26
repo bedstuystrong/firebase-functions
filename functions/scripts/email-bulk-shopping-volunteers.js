@@ -5,76 +5,89 @@ const moment = require('moment');
 const Mustache = require('mustache');
 const yargs = require('yargs');
 
-const { getPackingSlips, getAllRoutes } = require('../airtable');
+const { reconcileOrders, getAllRoutes } = require('../airtable');
 const { Email, googleMapsUrl } = require('../messages');
 
 async function main() {
   const { argv } = yargs
-    .option('delivery-date', {
+    .option('deliveryDate', {
       coerce: (x) => new Date(x),
       demandOption: true,
       describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
     })
-    .boolean('dry-run');
+    .boolean('dryRun');
+
+  // --------------------------------------------------------------------------
+  // CUSTOMIZATION
+
+  // Each week we might need custom shoppers to do some "bulk purchases" if we
+  // couldn't procure everything we needed. The "no route" section lets us ask
+  // every custom shopper to get some bulk items and not sort them by tickets.
+  const noRouteSection = {
+    items: [
+      {
+        item: 'Chicken: 9 individual 2 pound packs<br/>\n   Don\'t sort this chicken by ticket, just put all chicken together in a single bag, and hand directly to Hanna or Jackson for cold storage and packing.'
+      }
+    ]
+  };
+
+  // Sometimes, we have "custom items" we have on hand and don't need shoppers
+  // to purchase, but they aren't represented in the Bulk Order table.
+  const itemNeedsCustomShopping = ([item]) => {
+    return !(_.endsWith(item, 'art kit') || _.endsWith(item, 'art kits'));
+  };
+
+  // END CUSTOMIZATION
+  // --------------------------------------------------------------------------
 
   const allRoutes = await getAllRoutes(argv.deliveryDate);
 
-  const routesByShopper = _.groupBy(
-    _.filter(allRoutes, ([, fields]) => fields.shoppingVolunteer !== null),
-    ([, fields]) => {
-      return fields.shoppingVolunteerEmail[0];
-    }
-  );
+  const routesMissingShoppingVolunteer = _.filter(allRoutes, ([, fields]) => {
+    return fields.shoppingVolunteer === null;
+  });
+  if (!_.isEmpty(routesMissingShoppingVolunteer)) {
+    const msg = 'Some routes are missing a shopping volunteer';
+    console.error(msg, routesMissingShoppingVolunteer);
+    throw new Error(msg);
+  }
 
-  const packingSlips = await getPackingSlips(allRoutes, argv.deliveryDate);
+  const routesByShopper = _.groupBy(allRoutes, ([, fields]) => {
+    return fields.shoppingVolunteerEmail[0];
+  });
 
-  const packingSlipsById = _.fromPairs(
-    _.map(packingSlips, (slip) => {
-      return [slip.intakeRecord[0], slip];
+  const orders = await reconcileOrders(allRoutes, argv.deliveryDate);
+
+  const ordersByKey = _.fromPairs(
+    _.map(orders, (order) => {
+      return [order.intakeRecord[0], order];
     })
   );
 
-  const getTemplateVariables = ([shoppingVolunteer, routes]) => {
-    _.forEach(routes, ([, fields,]) => {
-      if (fields.shoppingVolunteerEmail[0] !== shoppingVolunteer) {
-        throw new Error(`Mismatched shopping volunteer email, expected ${shoppingVolunteer}, got ${shoppingVolunteerEmail[0]}`);
-      }
-    });
-    const noRouteSection = {
-      items: [
-        {
-          item: 'Chicken: 9 individual 2 pound packs<br/>\n   Don\'t sort this chicken by ticket, just put all chicken together in a single bag, and hand directly to Hanna or Jackson for cold storage and packing.'
-        }
-      ]
-    };
-    const slipsByRoute = _.map(
-      _.sortBy(routes, ([, fields]) => fields.name),
-      ([, fields]) => {
-        return [
-          fields.name,
-          _.map(fields.intakeTickets, (ticketID) => {
-            const slip = packingSlipsById[ticketID];
-            return slip;
-          }),
-        ];
-      }
-    );
-    const routeVariables = _.map(slipsByRoute, ([routeName, slips]) => {
-      const allTickets = _.map(
-        _.sortBy(slips, (slip) => slip.intakeRecord[1].ticketID),
-        (slip) => {
-          const { ticketID, vulnerability, householdSize } = slip.intakeRecord[1];
-          const conditions = _.concat([`household size ${householdSize}`], vulnerability);
-          const items = _.map(
-            _.filter(slip.getAdditionalItems(), ([item]) => {
-              return !(_.endsWith(item, 'art kit') || _.endsWith(item, 'art kits'));
-            }),
-            ([item, quantity]) => ({ item, quantity })
-          );
-          return { ticketID, conditions: _.join(conditions, ', '), items };
+  const templateParameterMaps = _.map(_.values(routesByShopper), (routes) => {
+    const sortedRoutes = _.sortBy(routes, ([, fields]) => fields.name);
+
+    const routeParameters = _.map(sortedRoutes, ([, fields]) => {
+      const { routeName } = fields;
+      const orders = _.sortBy(
+        _.map(fields.intakeTickets, (ticketKey) => {
+          return ordersByKey[ticketKey];
+        }),
+        (order) => {
+          return order.intakeRecord[1].ticketID;
         }
       );
-      const tickets = _.filter(allTickets, ({ items }) => items.length > 0);
+      const allTicketParameters = _.map(orders, (order) => {
+        const { ticketID, vulnerability, householdSize } = order.intakeRecord[1];
+        const conditions = _.concat([`household size ${householdSize}`], vulnerability);
+        const items = _.map(
+          _.filter(order.getAdditionalItems(), itemNeedsCustomShopping),
+          ([item, quantity]) => ({ item, quantity })
+        );
+        return { ticketID, conditions: _.join(conditions, ', '), items };
+      });
+      const tickets = _.filter(allTicketParameters, ({ items }) => {
+        return items.length > 0;
+      });
       return { name: routeName, tickets };
     });
 
@@ -91,15 +104,14 @@ async function main() {
       warehouseMapsUrl,
       warehouseCoordinatorPhone,
       noRouteSection,
-      routes: routeVariables,
+      routes: routeParameters,
     };
-  };
+  });
 
-  const views = _.map(_.entries(routesByShopper), getTemplateVariables);
+  const templateFilename = 'functions/templates/bulk-shopping-volunteer-email.md.mustache';
+  const template = (await fs.promises.readFile(templateFilename)).toString('utf-8');
 
-  const template = (await fs.promises.readFile('functions/templates/bulk-shopping-volunteer-email.md.mustache')).toString('utf-8');
-
-  const makeEmails = (view) => {
+  const emails = _.map(templateParameterMaps, (view) => {
     const markdown = Mustache.render(template, view);
 
     return new Email(markdown, {
@@ -108,9 +120,7 @@ async function main() {
       replyTo: 'operations+bulk@bedstuystrong.com',
       subject: `[BSS Bulk Ordering] ${view.deliveryDateString} Delivery Prep and Instructions for ${view.firstName}`,
     });
-  };
-
-  const emails = _.map(views, makeEmails);
+  });
 
   if (argv.dryRun) {
     _.forEach(emails, (email) => console.log(email.render()));

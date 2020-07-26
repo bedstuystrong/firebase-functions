@@ -81,8 +81,8 @@ async function getRecord(table, recordID) {
  * // Gets bulk delivery routes for July 25th
  * getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate: new Date("2020-07-25") })
  *
- * @param {string} table - The table to query.
- * @param {Object.<string, any>} filter - The filter to apply, keys should be columns defined in the schema for `table`.
+ * @param {string} table The table to query.
+ * @param {Object.<string, any>} filter The filter to apply, keys should be columns defined in the schema for `table`.
  */
 async function getRecordsWithFilter(table, filter) {
   const schema = TABLE_SCHEMAS[table];
@@ -303,6 +303,11 @@ async function getBulkOrder(records) {
   return itemToNumRequested;
 }
 
+/**
+ * Get a mapping from item name to the amount we ordered this week.
+ * @param {Date} deliveryDate Date this bulk delivery will go out.
+ * @returns {Promise<Object.<string, number>>} Map from item name to quantity available.
+ */
 async function getItemToNumAvailable(deliveryDate) {
   const bulkOrderRecords = await getRecordsWithFilter(BULK_ORDER_TABLE, { deliveryDate });
   return _.fromPairs(
@@ -312,6 +317,11 @@ async function getItemToNumAvailable(deliveryDate) {
   );
 }
 
+/**
+ * Get all Bulk Delivery Route records for this week.
+ * @param {Date} deliveryDate Date this bulk delivery will go out.
+ * @return {Promise<[string, Object, Object][]>} List of route records.
+ */
 async function getAllRoutes(deliveryDate) {
   const allRoutes = await getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate });
   const routesWithoutShopper = _.filter(allRoutes, ([, fields]) => {
@@ -344,22 +354,24 @@ async function getTicketsForRoutes(allRoutes) {
   );
 }
 
-class PackingSlip {
+class ReconciledOrder {
   constructor(
     intakeRecord,
     requested,
     provided,
     bulkDeliveryRoutes,
-    volunteerRecords
+    volunteerRecords,
+    itemToCategory,
   ) {
     this.intakeRecord = intakeRecord;
     this.requested = requested;
     this.provided = provided;
     this.bulkDeliveryRoutes = bulkDeliveryRoutes;
     this.volunteerRecords = volunteerRecords;
+    this.itemToCategory = itemToCategory;
   }
 
-  getMarkdown(itemToCategory, singleCategory, slipNumber) {
+  renderPackingSlip(singleCategory, slipNumber) {
     const fields = this.intakeRecord[1];
 
     const [, bulkRoute] = _.find(this.bulkDeliveryRoutes, ([id, ,]) => {
@@ -379,7 +391,7 @@ class PackingSlip {
     const itemGroups = _.groupBy(_.toPairs(this.provided), ([item]) => {
       return _.includes(['Bread', 'Bananas'], item)
         ? 'Last'
-        : itemToCategory[item];
+        : this.itemToCategory[item];
     });
 
     const categoryOrder = singleCategory
@@ -480,7 +492,19 @@ class PackingSlip {
   }
 }
 
-async function getPackingSlips(allRoutes, deliveryDate) {
+/**
+ * Reconcile bulk delivery orders with procured items from Bulk Order table.
+ * @param {[string, Object, Object][]} allRoutes All bulk delivery routes for this week.
+ * @param {Date} deliveryDate Date these orders will go out.
+ * @returns {Promise<ReconciledOrder[]>} List of reconciled orders.
+ */
+async function reconcileOrders(allRoutes, deliveryDate) {
+  const itemToCategory = _.fromPairs(
+    _.map(await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE), ([, fields]) => {
+      return [fields.item, fields.category];
+    })
+  );
+
   const intakeRecords = await getTicketsForRoutes(allRoutes);
 
   const itemToNumAvailable = await getItemToNumAvailable(deliveryDate);
@@ -488,7 +512,7 @@ async function getPackingSlips(allRoutes, deliveryDate) {
   const volunteerRecords = await getAllRecords(VOLUNTEER_FORM_TABLE);
 
   // Cannot be async, we need to process tickets in a deterministic order.
-  const packingSlips = [];
+  const orders = [];
   for (const record of intakeRecords) {
     const itemToNumRequested = await getBulkOrder([record]);
 
@@ -513,17 +537,27 @@ async function getPackingSlips(allRoutes, deliveryDate) {
       )
     );
 
-    packingSlips.push(
-      new PackingSlip(
+    orders.push(
+      new ReconciledOrder(
         record,
         itemToNumRequested,
         itemToNumProvided,
         allRoutes,
-        volunteerRecords
+        volunteerRecords,
+        itemToCategory,
       )
     );
   }
-  return Promise.resolve(packingSlips);
+
+  _.forEach(_.entries(itemToNumAvailable), ([item, numAvailable]) => {
+    if (numAvailable < 0) {
+      throw Error(
+        `Accounting for ${item} was off, found ${numAvailable} leftovers`
+      );
+    }
+  });
+
+  return orders;
 }
 
 /* META */
@@ -595,7 +629,8 @@ module.exports = {
   getItemsByHouseholdSize: getItemsByHouseholdSize,
   getAllRoutes: getAllRoutes,
   getTicketsForRoutes: getTicketsForRoutes,
-  getPackingSlips: getPackingSlips,
+  reconcileOrders: reconcileOrders,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
+  ReconciledOrder: ReconciledOrder,
 };
