@@ -455,11 +455,14 @@ class ReconciledOrder {
 
 /**
  * Reconcile bulk delivery orders with procured items from Bulk Order table.
- * @param {[string, Object, Object][]} allRoutes All bulk delivery routes for this week.
  * @param {Date} deliveryDate Date these orders will go out.
+ * @param {[string, Object, Object][] | undefined} allRoutes All bulk delivery routes for this week.
  * @returns {Promise<ReconciledOrder[]>} List of reconciled orders.
  */
-async function reconcileOrders(allRoutes, deliveryDate) {
+async function reconcileOrders(deliveryDate, allRoutes) {
+  if (allRoutes === undefined) {
+    allRoutes = await getAllRoutes(deliveryDate);
+  }
   const itemToCategory = _.fromPairs(
     _.map(await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE), ([, fields]) => {
       return [fields.item, fields.category];
@@ -490,6 +493,15 @@ async function reconcileOrders(allRoutes, deliveryDate) {
   // same between packing slips and shopping lists. Therefore, we need to be
   // careful that we sort tickets the same way every time, and we do accounting
   // for them sequentially.
+
+  // For example, suppose we don't have enough potatoes for all orders. When we
+  // reconcile tickets for packing slips, the tickets near the end of the list
+  // will show potatoes in the custom items section. If we reconcile tickets in
+  // a different order when generating shopping lists, a different set of
+  // tickets will get reconciled last and will have potatoes on their shopping
+  // lists. In that case, custom shoppers would mark the potatoes they bought
+  // for different tickets than what the packing slips said, and it would be
+  // confusing at the warehouse.
   const orders = [];
   for (const record of intakeRecords) {
     const itemToNumRequested = await getBulkOrder([record]);

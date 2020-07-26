@@ -10,7 +10,6 @@ const {
   reconcileOrders,
   // eslint-disable-next-line no-unused-vars
   ReconciledOrder,
-  getAllRoutes,
 } = require('../airtable');
 
 /**
@@ -135,6 +134,11 @@ async function savePackingSlips(orders) {
   const mergedOutPath = 'out/packing_slips.pdf';
   // @ts-ignore pdfmerge's callback isn't of the right type for promisify
   await util.promisify(pdfmerge)(outPaths, mergedOutPath);
+
+  await Promise.all(_.map(outPaths, (path) => {
+    return fs.promises.unlink(path);
+  }));
+
   return mergedOutPath;
 }
 
@@ -144,9 +148,8 @@ async function main() {
     demandOption: true,
     describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
   });
-  const allRoutes = await getAllRoutes(argv.deliveryDate);
 
-  const orders = await reconcileOrders(allRoutes, argv.deliveryDate);
+  const orders = await reconcileOrders(argv.deliveryDate);
 
   console.log('Creating packing slips...');
 

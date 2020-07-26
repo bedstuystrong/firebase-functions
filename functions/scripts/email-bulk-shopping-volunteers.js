@@ -58,7 +58,7 @@ async function main() {
     return fields.shoppingVolunteerEmail[0];
   });
 
-  const orders = await reconcileOrders(allRoutes, argv.deliveryDate);
+  const orders = await reconcileOrders(argv.deliveryDate, allRoutes);
 
   const ordersByKey = _.fromPairs(
     _.map(orders, (order) => {

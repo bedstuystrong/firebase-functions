@@ -1,41 +1,34 @@
 const _ = require('lodash');
-const { argv } = require('yargs');
+const yargs = require('yargs');
 
 const {
-  BULK_ORDER_TABLE,
   INTAKE_TABLE,
-  getAllRecords,
   getRecordsWithStatus,
   getBulkOrder,
+  getItemToNumAvailable,
 } = require('../airtable');
 
 async function main() {
-  // TODO: Do real argument parsing.
-  const deliveryDate = argv.deliveryDate;
-  if (!deliveryDate) {
-    throw new Error('must provide --deliveryDate=yyyy-mm-dd');
-  }
+  const { argv } = yargs
+    .option('deliveryDate', {
+      coerce: (x) => new Date(x),
+      demandOption: true,
+      describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
+    });
+
+  // Note: we compare our bulk order against all tickets with this status,
+  // rather than finding tickets based on what's in a bulk delivery route,
+  // because we may run this before creating the routes.
   const intakeRecords = await getRecordsWithStatus(INTAKE_TABLE, 'Bulk Delivery Confirmed');
 
   console.log(`Found ${intakeRecords.length} bulk delivery confirmed tickets.`);
 
   const itemToNumRequested = await getBulkOrder(intakeRecords);
 
-  const bulkOrderRecords = _.filter(
-    await getAllRecords(BULK_ORDER_TABLE),
-    ([, fields,]) => {
-      return fields.deliveryDate === deliveryDate;
-    }
-  );
-  const itemToNumOrdered = _.fromPairs(
-    _.map(
-      bulkOrderRecords,
-      ([, fields,]) => { return [fields.item, fields.quantity]; },
-    )
-  );
+  const itemToNumOrdered = await getItemToNumAvailable(argv.deliveryDate);
 
   const allItems = _.union(_.keys(itemToNumRequested), _.keys(itemToNumOrdered));
-  
+
   const getDiffForItem = (item) => {
     return [item, _.get(itemToNumOrdered, item, 0) - _.get(itemToNumRequested, item, 0)];
   };
