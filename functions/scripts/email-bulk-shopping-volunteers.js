@@ -31,9 +31,12 @@ async function main() {
     ]
   };
 
-  // Sometimes, we have "custom items" we have on hand and don't need shoppers
-  // to purchase, but they aren't represented in the Bulk Order table.
-  const itemNeedsCustomShopping = ([item]) => {
+  /**
+   * Sometimes, we have "custom items" we have on hand and don't need shoppers
+   * to purchase, but they aren't represented in the Bulk Order table.
+   * @param {{ item: string, quantity: number | null }} param0 Custom item.
+   */
+  const itemNeedsCustomShopping = ({ item }) => {
     return !(_.endsWith(item, 'art kit') || _.endsWith(item, 'art kits'));
   };
 
@@ -79,10 +82,7 @@ async function main() {
       const allTicketParameters = _.map(orders, (order) => {
         const { ticketID, vulnerability, householdSize } = order.intakeRecord[1];
         const conditions = _.concat([`household size ${householdSize}`], vulnerability);
-        const items = _.map(
-          _.filter(order.getAdditionalItems(), itemNeedsCustomShopping),
-          ([item, quantity]) => ({ item, quantity })
-        );
+        const items = _.filter(order.getAdditionalItems(), itemNeedsCustomShopping);
         return { ticketID, conditions: _.join(conditions, ', '), items };
       });
       const tickets = _.filter(allTicketParameters, ({ items }) => {

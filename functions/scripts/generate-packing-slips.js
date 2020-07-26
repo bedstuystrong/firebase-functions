@@ -41,12 +41,15 @@ async function savePackingSlips(orders) {
       const markdown = order.renderPackingSlip(category, i);
       const stream = PDF.from.string(markdown);
       const outPath = `out/${order.intakeRecord[1].ticketID}-${i}.pdf`;
+      // @ts-ignore stream.to.path's callback isn't of the right type for
+      // promisify
       await util.promisify(stream.to.path)(outPath);
       return outPath;
     });
   }));
 
   const mergedOutPath = 'out/packing_slips.pdf';
+  // @ts-ignore pdfmerge's callback isn't of the right type for promisify
   await util.promisify(pdfmerge)(outPaths, mergedOutPath);
   return mergedOutPath;
 }

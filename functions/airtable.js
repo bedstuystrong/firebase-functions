@@ -50,9 +50,19 @@ const TABLE_SCHEMAS = {
 
 /* GENERAL */
 
+/**
+ * Get a function to normalize records.
+ * @param {string} table Table name.
+ * @returns {(record: Airtable.Record) => [string, Object, Object]} Normalizing function for table.
+ */
 function normalizeRecords(table) {
   const schema = TABLE_SCHEMAS[table];
-  return function normalizeRecord(record) {
+  /**
+   * Normalize one record.
+   * @param {Airtable.Record} record Airtable record.
+   * @returns {[string, Object, Object]} A normalized record.
+   */
+  const normalizeRecord = (record) => {
     // TODO make this an object
     return [
       record.id,
@@ -60,6 +70,7 @@ function normalizeRecords(table) {
       record.fields._meta ? JSON.parse(record.fields._meta) : {},
     ];
   };
+  return normalizeRecord;
 }
 
 async function getAllRecords(table) {
@@ -67,6 +78,11 @@ async function getAllRecords(table) {
   return records.map(normalizeRecords(table));
 }
 
+/**
+ * Get one airtable record.
+ * @param {string} table Table name.
+ * @param {string} recordID Airtable record foreign key.
+ */
 async function getRecord(table, recordID) {
   const rec = await base(table).find(recordID);
   return normalizeRecords(table)(rec);
@@ -83,6 +99,7 @@ async function getRecord(table, recordID) {
  *
  * @param {string} table The table to query.
  * @param {Object.<string, any>} filter The filter to apply, keys should be columns defined in the schema for `table`.
+ * @returns {Promise<[string, Object, Object][]>} An array of airtable records.
  */
 async function getRecordsWithFilter(table, filter) {
   const schema = TABLE_SCHEMAS[table];
@@ -226,7 +243,7 @@ async function getVolunteerSlackID(volunteerID) {
 // TODO : come back and make sure the math here represents what we want
 function getTicketDueIn(fields) {
   return Math.round(
-    (getTicketDueDate(fields) - Date.now()) / (1000 * 60 * 60 * 24)
+    (getTicketDueDate(fields).valueOf() - Date.now().valueOf()) / (1000 * 60 * 60 * 24)
   );
 }
 
@@ -339,12 +356,21 @@ async function getAllRoutes(deliveryDate) {
   return allRoutes;
 }
 
+/**
+ * Get all tickets for a route.
+ * @param {[string, Object, Object]} param0 One bulk delivery route record.
+ * @returns {Promise<[string, Object, Object]>[]} Intake ticket record promises.
+ */
 function getTicketsForRoute([, fields]) {
   return _.map(fields.intakeTickets, (ticketRef) => {
     return getRecord(INTAKE_TABLE, ticketRef);
   });
 }
 
+/**
+ * Get tickets for all routes.
+ * @param {[string, Object, Object][]} allRoutes Bulk delivery route records.
+ */
 async function getTicketsForRoutes(allRoutes) {
   return _.sortBy(
     await Promise.all(_.flatMap(allRoutes, getTicketsForRoute)),
@@ -355,37 +381,43 @@ async function getTicketsForRoutes(allRoutes) {
 }
 
 class ReconciledOrder {
+  /**
+   * Construct a reconciled order.
+   *
+   * This object knows how many requested items were fulfilled, and has other
+   * metadata about the order.
+   *
+   * @param {[string, Object, Object]} intakeRecord Intake ticket record
+   * @param {Object.<string, number>} requested Map from item to quantity requested
+   * @param {Object.<string, number>} provided Map from item to quantity provided by bulk purchase
+   * @param {{ name: string }} bulkDeliveryRoute Bulk delivery route fields
+   * @param {{ Name: string }} volunteer Delivery volunteer fields
+   * @param {Object.<string, string>} itemToCategory Map from item to category
+   */
   constructor(
     intakeRecord,
     requested,
     provided,
-    bulkDeliveryRoutes,
-    volunteerRecords,
+    bulkDeliveryRoute,
+    volunteer,
     itemToCategory,
   ) {
     this.intakeRecord = intakeRecord;
     this.requested = requested;
     this.provided = provided;
-    this.bulkDeliveryRoutes = bulkDeliveryRoutes;
-    this.volunteerRecords = volunteerRecords;
+    this.bulkDeliveryRoute = bulkDeliveryRoute;
+    this.volunteer = volunteer;
     this.itemToCategory = itemToCategory;
   }
 
   renderPackingSlip(singleCategory, slipNumber) {
     const fields = this.intakeRecord[1];
 
-    const [, bulkRoute] = _.find(this.bulkDeliveryRoutes, ([id, ,]) => {
-      return id === fields.bulkRoute[0];
-    });
-    const [, volunteer] = _.find(this.volunteerRecords, ([id, ,]) => {
-      return id === bulkRoute.deliveryVolunteer[0];
-    });
-
-    let markdown = `# **${fields.ticketID}** (Route ${bulkRoute.name}): ${
+    let markdown = `# **${fields.ticketID}** (Route ${this.bulkDeliveryRoute.name}): ${
       fields.requestName
     } (${fields.nearestIntersection.trim()})\n\n`;
 
-    markdown += `**Delivery**: ${volunteer.Name}\n\n`;
+    markdown += `**Delivery**: ${this.volunteer.Name}\n\n`;
     markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
 
     const itemGroups = _.groupBy(_.toPairs(this.provided), ([item]) => {
@@ -436,6 +468,10 @@ class ReconciledOrder {
       if (otherItems.length > 0) {
         markdown += '\n---\n';
 
+        /**
+         * @param {[{ item: string, quantity: number | null }]} items List of
+         * items to purchase.
+         */
         const renderOtherTable = (items) => {
           const numCols = 2;
           const numRows = _.ceil(items.length / 2.0);
@@ -447,7 +483,7 @@ class ReconciledOrder {
               if (i >= items.length) {
                 markdown += ' &nbsp; |';
               } else {
-                markdown += ` ${items[i][1]} ${items[i][0]} |`;
+                markdown += ` ${items[i].quantity || ''} ${items[i].item} |`;
                 i++;
               }
             }
@@ -461,14 +497,17 @@ class ReconciledOrder {
     return markdown;
   }
 
+  /**
+   * @returns {[{ item: string, quantity: number | null }]} List of items and quantities.
+   */
   getAdditionalItems() {
     const fields = this.intakeRecord[1];
     const missingItems = _.filter(
       _.map(_.toPairs(this.requested), ([item, numRequested]) => {
-        return [item, numRequested - _.get(this.provided, item, 0)];
+        return { item, quantity: numRequested - _.get(this.provided, item, 0) };
       }),
-      ([, diff]) => {
-        return diff !== 0;
+      ({ quantity }) => {
+        return quantity !== 0;
       }
     );
 
@@ -483,11 +522,12 @@ class ReconciledOrder {
           }
         ),
         (item) => {
-          return [item, ''];
+          return { item, quantity: null };
         }
       )
       : [];
 
+    // @ts-ignore eslint doesn't understand array structures I guess?
     return missingItems.concat(customItems);
   }
 }
@@ -511,7 +551,24 @@ async function reconcileOrders(allRoutes, deliveryDate) {
 
   const volunteerRecords = await getAllRecords(VOLUNTEER_FORM_TABLE);
 
-  // Cannot be async, we need to process tickets in a deterministic order.
+  const routesByKey = _.fromPairs(
+    _.map(allRoutes, ([id, fields,]) => {
+      return [id, fields];
+    })
+  );
+
+  const volunteersByKey = _.fromPairs(
+    _.map(volunteerRecords, ([id, fields,]) => {
+      return [id, fields];
+    })
+  );
+
+  // WARNING: We cannot process orders in an async manner. We need them to be
+  // processed in a deterministic order, so that the accounting (which tickets
+  // need custom shoppers to buy bulk items we couldn't procure) will be the
+  // same between packing slips and shopping lists. Therefore, we need to be
+  // careful that we sort tickets the same way every time, and we do accounting
+  // for them sequentially.
   const orders = [];
   for (const record of intakeRecords) {
     const itemToNumRequested = await getBulkOrder([record]);
@@ -537,13 +594,17 @@ async function reconcileOrders(allRoutes, deliveryDate) {
       )
     );
 
+    const bulkDeliveryRoute = routesByKey[record[1].bulkRoute[0]];
+
+    const volunteer = volunteersByKey[record[1].deliveryVolunteer[0]];
+
     orders.push(
       new ReconciledOrder(
         record,
         itemToNumRequested,
         itemToNumProvided,
-        allRoutes,
-        volunteerRecords,
+        bulkDeliveryRoute,
+        volunteer,
         itemToCategory,
       )
     );
