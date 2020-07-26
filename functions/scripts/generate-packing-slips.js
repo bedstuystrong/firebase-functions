@@ -14,6 +14,90 @@ const {
 } = require('../airtable');
 
 /**
+ * Render one packing slip for this order.
+ * @param {ReconciledOrder} order Reconciled order
+ * @param {string | null} singleCategory Render one category, or all others
+ * @param {number} slipNumber Which slip number this is
+ * @returns {string} markdown for this packing slip
+ */
+function renderPackingSlip(order, singleCategory, slipNumber) {
+  const itemGroups = order.bulkPurchasedItemsByGroup();
+
+  const fields = order.intakeRecord[1];
+
+  let markdown = `# **${fields.ticketID}** (Route ${order.bulkDeliveryRoute.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
+
+  markdown += `**Delivery**: ${order.volunteer.Name}\n\n`;
+  markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
+
+  const categoryOrder = singleCategory
+    ? [singleCategory]
+    : ['Non-perishable', 'Produce', 'Last'];
+
+  const renderTable = (groups, categories) => {
+    const numRows = _.max(
+      _.map(_.toPairs(groups), ([category, items]) => {
+        return _.includes(categories, category) ? items.length : 0;
+      })
+    );
+    markdown += '| ';
+    _.forEach(categories, (category) => {
+      markdown += ` ${category} |`;
+    });
+    markdown += '\n';
+    _.forEach(categories, () => {
+      markdown += ' --- |';
+    });
+    for (var i = 0; i < numRows; i++) {
+      markdown += '\n|';
+      for (const category of categories) {
+        const items = groups[category];
+        if (items === undefined || i >= items.length) {
+          markdown += ' &nbsp; |';
+        } else {
+          markdown += ` ${items[i][1]} ${items[i][0]} |`;
+        }
+      }
+    }
+    markdown += '\n';
+  };
+  renderTable(itemGroups, categoryOrder);
+
+  if (!singleCategory && (!_.isNull(fields.otherItems) || !_.isEqual(order.provided, order.requested))) {
+    const otherItems = order.getAdditionalItems();
+    if (otherItems.length > 0) {
+      markdown += '\n---\n';
+
+      /**
+       * @param {[{ item: string, quantity: number | null }]} items List of
+       * items to purchase.
+       */
+      const renderOtherTable = (items) => {
+        const numCols = 2;
+        const numRows = _.ceil(items.length / 2.0);
+        markdown += '| Other |\n| --- |';
+        var i = 0;
+        for (var row = 0; row < numRows; row++) {
+          markdown += '\n|';
+          for (var col = 0; col < numCols; col++) {
+            if (i >= items.length) {
+              markdown += ' &nbsp; |';
+            } else {
+              markdown += ` ${items[i].quantity || ''} ${items[i].item} |`;
+              i++;
+            }
+          }
+        }
+        markdown += '\n';
+      };
+      renderOtherTable(otherItems);
+    }
+  }
+
+  return markdown;
+}
+
+/**
  * Render packing slips into one PDF file.
  * @param {ReconciledOrder[]} orders orders to render
  * @returns {Promise<string>} Path PDF was written to.
@@ -38,7 +122,7 @@ async function savePackingSlips(orders) {
   const sheetCategories = [null, 'Cleaning Bundle', 'Fridge / Frozen'];
   const outPaths = await Promise.all(_.flatMap(orders, (order) => {
     return _.map(sheetCategories, async (category, i) => {
-      const markdown = order.renderPackingSlip(category, i);
+      const markdown = renderPackingSlip(order, category, i);
       const stream = PDF.from.string(markdown);
       const outPath = `out/${order.intakeRecord[1].ticketID}-${i}.pdf`;
       // @ts-ignore stream.to.path's callback isn't of the right type for

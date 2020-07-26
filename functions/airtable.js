@@ -410,91 +410,12 @@ class ReconciledOrder {
     this.itemToCategory = itemToCategory;
   }
 
-  renderPackingSlip(singleCategory, slipNumber) {
-    const fields = this.intakeRecord[1];
-
-    let markdown = `# **${fields.ticketID}** (Route ${this.bulkDeliveryRoute.name}): ${
-      fields.requestName
-    } (${fields.nearestIntersection.trim()})\n\n`;
-
-    markdown += `**Delivery**: ${this.volunteer.Name}\n\n`;
-    markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
-
-    const itemGroups = _.groupBy(_.toPairs(this.provided), ([item]) => {
+  bulkPurchasedItemsByGroup() {
+    return _.groupBy(_.toPairs(this.provided), ([item]) => {
       return _.includes(['Bread', 'Bananas'], item)
         ? 'Last'
         : this.itemToCategory[item];
     });
-
-    const categoryOrder = singleCategory
-      ? [singleCategory]
-      : ['Non-perishable', 'Produce', 'Last'];
-
-    const renderTable = (groups, categories) => {
-      const numRows = _.max(
-        _.map(_.toPairs(groups), ([category, items]) => {
-          return _.includes(categories, category) ? items.length : 0;
-        })
-      );
-      markdown += '| ';
-      _.forEach(categories, (category) => {
-        markdown += ` ${category} |`;
-      });
-      markdown += '\n';
-      _.forEach(categories, () => {
-        markdown += ' --- |';
-      });
-      for (var i = 0; i < numRows; i++) {
-        markdown += '\n|';
-        for (const category of categories) {
-          const items = groups[category];
-          if (items === undefined || i >= items.length) {
-            markdown += ' &nbsp; |';
-          } else {
-            markdown += ` ${items[i][1]} ${items[i][0]} |`;
-          }
-        }
-      }
-      markdown += '\n';
-    };
-    renderTable(itemGroups, categoryOrder);
-
-    if (
-      !singleCategory &&
-      (!_.isNull(fields.otherItems) ||
-        !_.isEqual(this.provided, this.requested))
-    ) {
-      const otherItems = this.getAdditionalItems();
-      if (otherItems.length > 0) {
-        markdown += '\n---\n';
-
-        /**
-         * @param {[{ item: string, quantity: number | null }]} items List of
-         * items to purchase.
-         */
-        const renderOtherTable = (items) => {
-          const numCols = 2;
-          const numRows = _.ceil(items.length / 2.0);
-          markdown += '| Other |\n| --- |';
-          var i = 0;
-          for (var row = 0; row < numRows; row++) {
-            markdown += '\n|';
-            for (var col = 0; col < numCols; col++) {
-              if (i >= items.length) {
-                markdown += ' &nbsp; |';
-              } else {
-                markdown += ` ${items[i].quantity || ''} ${items[i].item} |`;
-                i++;
-              }
-            }
-          }
-          markdown += '\n';
-        };
-        renderOtherTable(otherItems);
-      }
-    }
-
-    return markdown;
   }
 
   /**
