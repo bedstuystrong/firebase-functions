@@ -72,7 +72,10 @@ async function main() {
   });
 
   if (argv.dryRun) {
-    console.log(emails);
+    _.forEach(emails, (email) => {
+      console.log('To:', email.render().to);
+      console.log(email.render().text);
+    });
   } else {
     await Promise.all(_.map(emails, (email) => {
       return email.send();
