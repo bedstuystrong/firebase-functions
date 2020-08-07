@@ -271,15 +271,6 @@ function getTicketDueDate(fields) {
   return new Date(dateCreated.getTime() + daysAllotted * (1000 * 60 * 60 * 24));
 }
 
-async function getItemsByHouseholdSize() {
-  return _.fromPairs(
-    _.map(
-      await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
-      ([, fields,]) => { return [fields.item, fields]; },
-    ),
-  );
-}
-
 /* BULK ORDER */
 
 async function getItemsByHouseholdSize() {

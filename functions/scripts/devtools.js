@@ -8,34 +8,13 @@ const yargs = require('yargs');
 allSettled.shim();
 
 const {
-  INBOUND_TABLE,
   INTAKE_TABLE,
-  META_STORE_KEYS,
-  REIMBURSEMENTS_TABLE,
-  VOLUNTEER_FORM_TABLE,
-  getChangedRecords,
-  getMeta,
-  getLastNonDuplicate,
-  getRecord,
   getRecordsWithTicketID,
-  getRecordsWithStatus,
-  getTicketDueDate,
-  getVolunteerSlackID,
-  storeMeta,
-  updateRecord,
-  getVolunteerBySlackID,
 } = require('../airtable');
 
 const {
-  INBOUND_STATUSES
-} = require('../schema');
-
-const {
-  getIntakePostContent,
-  getIntakePostDetails,
   getDeliveryDMContent,
   renderDeliveryDM,
-  getTicketSummaryBlocks,
   getShoppingList,
   renderShoppingList,
 } = require('../messages');
