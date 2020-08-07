@@ -4,8 +4,16 @@ const sgMail = require('@sendgrid/mail');
 const showdown = require('showdown');
 const _ = require('lodash');
 
-const { getTicketDueIn, getVolunteerSlackID } = require('./airtable');
 const { BULK_DELIVERY_STATUSES } = require('./schema');
+const {
+  getTicketDueIn,
+  getVolunteerSlackID,
+  getAllRecords,
+  ITEM_DIRECTORY_TABLE,
+  BULK_ORDER_TABLE,
+  ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
+  getItemsByHouseholdSize,
+} = require('./airtable');
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
@@ -179,6 +187,94 @@ _${safetyReminder}_
   return content;
 }
 
+const renderDeliveryDM = (ticketID, deliveryDMContent, deliveryChannel) => (
+  {
+    channel: deliveryChannel,
+    as_user: true,
+    text: deliveryDMContent, // fallback for blocks section
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: deliveryDMContent
+        }
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: 'Email me a shopping list'
+            },
+            style: 'primary',
+            action_id: 'email_shopping_list',
+            value: ticketID
+          }
+        ]
+      }
+    ],
+    unfurl_media: false,
+    unfurl_links: false,
+  }
+);
+
+async function getShoppingList(tickets) {
+  const itemsByHouseholdSize = await getItemsByHouseholdSize();
+  const categorizedStandardFoodOptions = ([, fields]) => {
+    return _.fromPairs(
+      _.map(fields.foodOptions, (item) => [
+        item,
+        {
+          category: (itemsByHouseholdSize[item]) ? itemsByHouseholdSize[item].category : 'Custom',
+          amounts: {
+            ticket: fields.ticketID,
+            quantity: (itemsByHouseholdSize[item]) ? itemsByHouseholdSize[item][fields.householdSize] : 'custom',
+          },
+          unit: (itemsByHouseholdSize[item]) ? itemsByHouseholdSize[item].unit : 'custom',
+        },
+      ])
+    );
+  };
+  const addAmounts = (item, acc, amounts) => {
+    return _.get(acc, item, { amounts: [] }).amounts.concat([amounts]);
+  };
+  const totalCategorizedStandardFoodOptions = _.reduce(
+    _.map(tickets, categorizedStandardFoodOptions),
+    (acc, groups) => {
+      const updates = _.fromPairs(
+        _.map(_.entries(groups), ([item, { category, amounts, unit }]) => [
+          item,
+          {
+            category,
+            amounts: addAmounts(item, acc, amounts),
+            unit,
+          },
+        ])
+      );
+      return Object.assign(acc, updates);
+    },
+    {}
+  );
+  const flattened = _.map(_.entries(totalCategorizedStandardFoodOptions), ([item, { category, amounts, unit }]) => ({ item, category, amounts, unit }));
+  return _.groupBy(flattened, 'category');
+}
+
+const renderShoppingList = (groups) => {
+  var shoppingList = '';
+  for (const [group, items] of _.entries(groups)) {
+    shoppingList += `\n## ${group}:\n\n`;
+    for (const { item, amounts, unit } of items) {
+      const howMuch = _.join(_.map(amounts, ({ ticket, quantity }) => `  - [ ] ${quantity} for ${ticket}`), '\n');
+      shoppingList += `* ${item} (${unit}):\n${howMuch}`;
+      shoppingList += '\n';
+    }
+  }
+  return shoppingList;
+};
+
 async function getTicketSummaryBlocks(
   tickets,
   minDueDate = 3,
@@ -323,4 +419,7 @@ module.exports = {
   getTicketSummaryBlocks,
   googleMapsUrl,
   Email,
+  getShoppingList,
+  renderShoppingList,
+  renderDeliveryDM
 };

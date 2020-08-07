@@ -30,6 +30,7 @@ const {
   getIntakePostContent,
   getIntakePostDetails,
   getDeliveryDMContent,
+  renderDeliveryDM,
   getTicketSummaryBlocks,
 } = require('./messages');
 
@@ -392,13 +393,8 @@ async function onIntakeAssigned(id, fields, meta) {
     return null;
   }
 
-  const deliveryMessageResponse = await bot.chat.postMessage({
-    channel: deliveryChannel,
-    as_user: true,
-    text: await getDeliveryDMContent(fields),
-    unfurl_media: false,
-    unfurl_links: false,
-  });
+  const deliveryDMContent = await getDeliveryDMContent(fields);
+  const deliveryMessageResponse = await bot.chat.postMessage(renderDeliveryDM(fields.ticketID, deliveryDMContent, deliveryChannel));
 
   if (deliveryMessageResponse.ok) {
     console.log('onIntakeAssigned: Delivery DM sent', {

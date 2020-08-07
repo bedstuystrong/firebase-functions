@@ -37,6 +37,7 @@ const ITEMS_BY_HOUSEHOLD_SIZE_TABLE = functions.config().airtable
 const BULK_ORDER_TABLE = functions.config().airtable.bulk_order_table;
 const BULK_DELIVERY_ROUTES_TABLE = functions.config().airtable
   .bulk_delivery_routes_table;
+const ITEM_DIRECTORY_TABLE = functions.config().airtable.item_directory_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
@@ -237,6 +238,14 @@ async function getVolunteerSlackID(volunteerID) {
   return normalize(rec.fields, VOLUNTEER_SCHEMA).slackUserID;
 }
 
+async function getVolunteerBySlackID(slackID) {
+  const query = base(VOLUNTEER_FORM_TABLE).select({
+    filterByFormula: `{Slack User ID} = "${slackID}"`
+  });
+  const records = await query.all();
+  return records.map(normalizeRecords(VOLUNTEER_FORM_TABLE))[0];
+}
+
 /* INTAKE */
 
 // Returns the number of days left to complete the ticket
@@ -260,6 +269,15 @@ function getTicketDueDate(fields) {
   const daysAllotted = NEED_IMMEDIACY_TO_DAYS[fields.timeline];
 
   return new Date(dateCreated.getTime() + daysAllotted * (1000 * 60 * 60 * 24));
+}
+
+async function getItemsByHouseholdSize() {
+  return _.fromPairs(
+    _.map(
+      await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE),
+      ([, fields,]) => { return [fields.item, fields]; },
+    ),
+  );
 }
 
 /* BULK ORDER */
@@ -599,6 +617,7 @@ module.exports = {
   INBOUND_TABLE: INBOUND_TABLE,
   INTAKE_TABLE: INTAKE_TABLE,
   ITEMS_BY_HOUSEHOLD_SIZE_TABLE: ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
+  ITEM_DIRECTORY_TABLE: ITEM_DIRECTORY_TABLE,
   META_STORE_KEYS: META_STORE_KEYS,
   META_TABLE: META_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
@@ -610,6 +629,7 @@ module.exports = {
   getAllRecords: getAllRecords,
   getBulkOrder: getBulkOrder,
   getChangedRecords: getChangedRecords,
+  getItemsByHouseholdSize: getItemsByHouseholdSize,
   getLastNonDuplicate: getLastNonDuplicate,
   getMeta: getMeta,
   getRecord: getRecord,
@@ -620,10 +640,10 @@ module.exports = {
   getTicketDueIn: getTicketDueIn,
   getVolunteerSlackID: getVolunteerSlackID,
   getItemToNumAvailable: getItemToNumAvailable,
-  getItemsByHouseholdSize: getItemsByHouseholdSize,
   getAllRoutes: getAllRoutes,
   getTicketsForRoutes: getTicketsForRoutes,
   reconcileOrders: reconcileOrders,
+  getVolunteerBySlackID: getVolunteerBySlackID,
   storeMeta: storeMeta,
   updateRecord: updateRecord,
   ReconciledOrder: ReconciledOrder,
