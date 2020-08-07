@@ -83,7 +83,7 @@ module.exports = {
     if (status === 0) {
       sendMessageToSlackResponseUrl(payload.response_url, {
         replace_original: false,
-        text: "Your email is on its way! (if you don't see it shortly, check your spam folder.)",
+        text: 'Your email is on its way! (if you don\'t see it shortly, check your spam folder.)',
       });
     } else {
       sendFailureMessage(payload.response_url);
@@ -140,18 +140,18 @@ async function onMessageEvent(event) {
 
 async function handleAction(action, user) {
   switch (action.action_id) {
-    case 'email_shopping_list':
-      try {
-        await emailShoppingList(action.value, user.id);
-      } catch (err) {
-        console.error('Failed to email shopping list to user', { user: user.id, err: err });
-        return 1;
-      }
-
-      return 0;
-    default:
-      console.error('Encountered an unsupported slack action_id', { action_id: action.action_id });
+  case 'email_shopping_list':
+    try {
+      await emailShoppingList(action.value, user.id);
+    } catch (err) {
+      console.error('Failed to email shopping list to user', { user: user.id, err: err });
       return 1;
+    }
+
+    return 0;
+  default:
+    console.error('Encountered an unsupported slack action_id', { action_id: action.action_id });
+    return 1;
   }
 }
 

@@ -8,10 +8,6 @@ const { BULK_DELIVERY_STATUSES } = require('./schema');
 const {
   getTicketDueIn,
   getVolunteerSlackID,
-  getAllRecords,
-  ITEM_DIRECTORY_TABLE,
-  BULK_ORDER_TABLE,
-  ITEMS_BY_HOUSEHOLD_SIZE_TABLE,
   getItemsByHouseholdSize,
 } = require('./airtable');
 
