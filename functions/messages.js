@@ -202,11 +202,20 @@ const renderDeliveryDM = (ticketID, deliveryDMContent, deliveryChannel) => (
             type: 'button',
             text: {
               type: 'plain_text',
-              text: 'Email me a shopping list'
+              text: 'Email me this shopping list'
             },
             style: 'primary',
             action_id: 'email_shopping_list',
             value: ticketID
+          },
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: 'One list for all my tickets'
+            },
+            style: 'primary',
+            action_id: 'email_consolidated_shopping_list'
           }
         ]
       }
@@ -265,6 +274,17 @@ const renderShoppingList = (groups) => {
       const howMuch = _.join(_.map(amounts, ({ ticket, quantity }) => `  - [ ] ${quantity} for ${ticket}`), '\n');
       shoppingList += `* ${item} (${unit}):\n${howMuch}`;
       shoppingList += '\n';
+    }
+  }
+  return shoppingList;
+};
+
+const renderSingleTicketShoppingList = (groups) => {
+  var shoppingList = '';
+  for (const [group, items] of _.entries(groups)) {
+    shoppingList += `\n#### ${group}:\n\n`;
+    for (const { item, amounts, unit } of items) {
+      shoppingList += `- [ ] ${amounts[0].quantity} ${unit} ${item}\n`;
     }
   }
   return shoppingList;
@@ -455,5 +475,6 @@ module.exports = {
   Email,
   getShoppingList,
   renderShoppingList,
+  renderSingleTicketShoppingList,
   renderDeliveryDM
 };
