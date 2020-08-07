@@ -51,8 +51,7 @@ async function getIntakePostContent(fields) {
 *Status:* ${STATUS_TO_EMOJI[fields.status]} ${fields.status}\n`;
 
   if (_.includes(BULK_DELIVERY_STATUSES, fields.status)) {
-    content +=
-      '*No volunteer needed*: This will be part of the next bulk delivery!';
+    content += '*No volunteer needed*: This will be part of the next bulk delivery!';
   } else if (fields.status !== 'Seeking Volunteer') {
     content += '*Assigned to*: ';
 
@@ -287,14 +286,28 @@ async function getTicketSummaryBlocks(
     };
   }
 
+  const quadrantHeartColors = {
+    NE: ':purple_heart:',
+    SE: ':blue_heart:',
+    NW: ':orange_heart:',
+    SW: ':green_heart:',
+  };
+
+  const quadrantNames = {
+    NE: 'NORTHEAST',
+    SE: 'SOUTHEAST',
+    NW: 'NORTHWEST',
+    SW: 'SOUTHWEST',
+  };
+
   let blocks = [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `*Delivery Request Summary*\n\n:fire: _Overdue!_, :warning: _Due Today_, :turtle: _< ${minDueDate} Days Left_`,
-      },
-    },
+        text: '*Delivery Request Summary*',
+      }
+    }
   ];
 
   const idToDueDate = _.zipObject(
@@ -336,53 +349,78 @@ async function getTicketSummaryBlocks(
       type: 'divider',
     });
 
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*${neighborhood}* _(${neighborhoodToTickets[neighborhood].length} Unassigned)_`,
-      },
-    });
-
-    // NOTE that we only display tickets that are in the `maxNumSelected` truncated set
-    for (const [id, fields] of filteredNeighborhoodTickets) {
-      const dueDate = idToDueDate[id];
-
-      let urgencyEmoji;
-      if (dueDate < 0) {
-        urgencyEmoji = ':fire:';
-      } else if (dueDate < 1) {
-        urgencyEmoji = ':warning:';
-      } else {
-        urgencyEmoji = ':turtle:';
-      }
-
-      let ticketContent = `${urgencyEmoji} *${fields.ticketID}* (${fields.nearestIntersection}) [household of ${fields.householdSize}]`;
-
-      // NOTE that it is a better user experience if we link to a thread, but we only have threads for new
-      // tickets, and backfilling them ended up being too much work
-      const link = fields.slackPostThreadLink || fields.slackPostLink;
-      if (link) {
-        ticketContent += `: <${link}|_link to post_>`;
-      }
-
-      blocks.push({
+    blocks.push(
+      {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: ticketContent,
-        },
+          text: `*${quadrantNames[neighborhood]}*`,
+        }
+      }
+    );
+
+    const ticketsByUrgency = _.groupBy(filteredNeighborhoodTickets, ([id]) => {
+      const dueDate = idToDueDate[id];
+      if (dueDate < 0) {
+        return 'Overdue';
+      } else if (dueDate < 1) {
+        return 'Due Today';
+      } else {
+        return 'Not Due Today';
+      }
+    });
+
+    const urgencyEmoji = {
+      'Overdue': ':fire:',
+      'Due Today': ':warning:',
+      'Not Due Today': ':turtle:',
+    };
+
+    const relevantUrgencies = _.filter(
+      ['Overdue', 'Due Today', 'Not Due Today'],
+      (urgency) => { return ticketsByUrgency[urgency]; },
+    );
+
+    _.forEach(relevantUrgencies, (urgency) => {
+      blocks.push(
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `${urgencyEmoji[urgency]} ${ticketsByUrgency[urgency].length} _${urgency}_`,
+          }
+        }
+      );
+  
+      _.forEach(ticketsByUrgency[urgency], ([, fields,]) => {
+        // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
+        // tickets, and backfilling them ended up being too much work
+        const link = fields.slackPostThreadLink || fields.slackPostLink;
+    
+        const ticketContent = `${quadrantHeartColors[neighborhood]} <${link}|*${fields.ticketID}*> (${fields.nearestIntersection}) [household of ${fields.householdSize}]`;
+    
+        blocks.push(
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: ticketContent
+            }
+          }
+        );
       });
-    }
+    });
   }
 
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `If you would like to claim one of these deliveries, please comment on the ticket thread by following the _link to post_, or reach out in <#${CHANNEL_IDS.delivery_volunteers}>`,
-    },
-  });
+  blocks.push(
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `If you would like to claim one of these deliveries, please comment on the ticket thread by following the Ticket ID link, or reach out in <#${CHANNEL_IDS.delivery_volunteers}>`
+      }
+    }
+  );
 
   return blocks;
 }
