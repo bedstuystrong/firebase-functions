@@ -162,7 +162,7 @@ async function handleAction(action, user) {
     try {
       const records = await getRecordsWithFilter(INTAKE_TABLE, {
         status: 'Assigned / In Progress',
-        deliveryVolunteer: volunteerKey
+        deliveryVolunteerRecordID: volunteerKey
       });
       validateVolunteerAssigned(records, volunteerKey);
       const email = await getConsolidatedShoppingListEmail(records, volunteer);
