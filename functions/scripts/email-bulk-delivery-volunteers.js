@@ -26,7 +26,7 @@ function getEmailTemplateParameters(route, tickets) {
       return fields.ticketID;
     }), ', '),
     warehouseMapsUrl: googleMapsUrl('221 Glenmore Ave'),
-    arrivalTime: route.arrivalTime,
+    arrivalTime: _.trim(route.arrivalTime),
     warehouseCoordinatorPhone: functions.config().bulk_ops_team.warehouse_coordinator.phone_number,
     tickets: ticketParameterMaps,
   };

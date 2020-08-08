@@ -392,7 +392,7 @@ class ReconciledOrder {
    * @param {Object.<string, number>} provided Map from item to quantity provided by bulk purchase
    * @param {{ name: string }} bulkDeliveryRoute Bulk delivery route fields
    * @param {{ Name: string }} volunteer Delivery volunteer fields
-   * @param {Object.<string, string>} itemToCategory Map from item to category
+   * @param {Object.<string, { category: string, order: number }>} itemToCategory Map from item to category
    */
   constructor(
     intakeRecord,
@@ -411,11 +411,18 @@ class ReconciledOrder {
   }
 
   bulkPurchasedItemsByGroup() {
-    return _.groupBy(_.toPairs(this.provided), ([item]) => {
-      return _.includes(['Bread', 'Bananas'], item)
-        ? 'Last'
-        : this.itemToCategory[item];
+    const groups = _.groupBy(_.toPairs(this.provided), ([item]) => {
+      return this.itemToCategory[item].category;
     });
+    const sorted = _.fromPairs(_.map(_.toPairs(groups), ([category, items]) => {
+      return [
+        category,
+        _.sortBy(items, (item) => {
+          return _.toNumber(this.itemToCategory[item[0]].order);
+        })
+      ];
+    }));
+    return sorted;
   }
 
   /**
@@ -465,7 +472,7 @@ async function reconcileOrders(deliveryDate, allRoutes) {
   }
   const itemToCategory = _.fromPairs(
     _.map(await getAllRecords(ITEMS_BY_HOUSEHOLD_SIZE_TABLE), ([, fields]) => {
-      return [fields.item, fields.category];
+      return [fields.item, { category: fields.category, order: fields.order }];
     })
   );
 
