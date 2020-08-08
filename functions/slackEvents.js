@@ -1,10 +1,8 @@
 const functions = require('firebase-functions');
 const fetch = require('node-fetch');
 const Slack = require('slack');
-const showdown = require('showdown');
-const sgMail = require('@sendgrid/mail');
+const _ = require('lodash');
 
-sgMail.setApiKey(functions.config().sendgrid.api_key);
 const emailDomain = functions.config().sendgrid.from_domain;
 
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
@@ -15,11 +13,14 @@ const {
   INTAKE_TABLE,
   getRecordsWithTicketID,
   getVolunteerBySlackID,
+  getRecordsWithFilter,
 } = require('./airtable');
 
 const {
   getShoppingList,
   renderShoppingList,
+  renderSingleTicketShoppingList,
+  Email,
 } = require('./messages');
 
 // To test locally:
@@ -139,10 +140,33 @@ async function onMessageEvent(event) {
 }
 
 async function handleAction(action, user) {
+  const [volunteerKey, volunteer] = await getVolunteerBySlackID(user.id);
+  if (!volunteer) {
+    throw new Error(`No volunteer found for slack id ${user.id}`);
+  }
+
   switch (action.action_id) {
   case 'email_shopping_list':
     try {
-      await emailShoppingList(action.value, user.id);
+      const records = await getRecordsWithTicketID(INTAKE_TABLE, action.value);
+      validateVolunteerAssigned(records, volunteerKey);
+      const email = await getSingleShoppingListEmail(records, volunteer);
+      email.send();
+    } catch (err) {
+      console.error('Failed to email shopping list to user', { user: user.id, err: err });
+      return 1;
+    }
+
+    return 0;
+  case 'email_consolidated_shopping_list':
+    try {
+      const records = await getRecordsWithFilter(INTAKE_TABLE, {
+        status: 'Assigned / In Progress',
+        deliveryVolunteer: volunteerKey
+      });
+      validateVolunteerAssigned(records, volunteerKey);
+      const email = await getConsolidatedShoppingListEmail(records, volunteer);
+      email.send();
     } catch (err) {
       console.error('Failed to email shopping list to user', { user: user.id, err: err });
       return 1;
@@ -167,49 +191,86 @@ async function sendMessageToSlackResponseUrl(responseUrl, message) {
   });
 }
 
-async function emailShoppingList(ticketID, userID) {
-  const records = await getRecordsWithTicketID(INTAKE_TABLE, ticketID);
+function validateVolunteerAssigned(records, volunteerKey) {
+  const mismatchedVolunteerTickets = _.filter(records, ([, fields,]) => {
+    return !_.includes(fields.deliveryVolunteer, volunteerKey);
+  });
+  if (!_.isEmpty(mismatchedVolunteerTickets)) {
+    const mismatchedTicketIDs = _.join(
+      _.map(mismatchedVolunteerTickets, ([, fields,]) => {
+        return fields.ticketID;
+      }),
+      ', '
+    );
+    throw new Error(`Volunteer ${volunteerKey} requested a shopping list for tickets they are not assigned to: ${mismatchedTicketIDs}`);
+  }
+}
+
+function renderTicketMetadata(fields) {
+  return `
+**Ticket ID:** ${fields.ticketID}<br/>
+**Neighbor:** ${fields.requestName} (${fields.nearestIntersection})<br/>
+**Address:** ${fields.address}<br/>
+**Phone:** ${fields.phoneNumber}<br/>
+**Delivery Notes:** ${fields.deliveryNotes}<br/>
+**Vulnerabilities:** ${fields.vulnerability}<br/>
+**Household Size:** ${fields.householdSize}<br/>`;
+}
+
+async function getSingleShoppingListEmail(records, volunteer) {
   if (records.length !== 1) {
     throw new Error(`Found ${records.length} records`);
   }
-
-  const [, volunteer] = await getVolunteerBySlackID(userID);
-  if (!volunteer) {
-    throw new Error(`No volunteer found for slack id ${userID}`);
-  }
-
   const shoppingList = await getShoppingList(records);
-
-  const email = `
+  const [, fields] = records[0];
+  var email = `
 Hi ${volunteer.Name.split(' ')[0]}!
 
 Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy Strong!
 
-Here's your shopping list for ticket ${ticketID}:
+Here's your shopping list:
 
-${renderShoppingList(shoppingList)}
+${renderTicketMetadata(fields)}
+${renderSingleTicketShoppingList(shoppingList)}
+**Other Items:** ${fields.otherItems}
 `;
-
-  const converter = new showdown.Converter({
-    tasklists: true,
-  });
-
-  const msg = {
+  return new Email(email, {
     to: volunteer.email,
     replyTo: 'noreply@bedstuystrong.com',
     from: `shopping-lists@${emailDomain}`,
-    subject: `${ticketID}: Bed Stuy Strong Shopping List`,
-    text: email,
-    html: converter.makeHtml(email),
-  };
+    subject: `${fields.ticketID}: Bed Stuy Strong Shopping List`,
+  });
+}
 
-  try {
-    await sgMail.send(msg);
-  } catch (error) {
-    if (error.response) {
-      console.error(error.response.body);
-    }
+async function getConsolidatedShoppingListEmail(records, volunteer) {
+  const shoppingList = await getShoppingList(records);
 
-    throw error;
-  }
+  var email = `
+Hi ${volunteer.Name.split(' ')[0]}!
+
+Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy Strong!
+
+Here's your shopping list for all the tickets assigned to you right now. Your ticket details are at the bottom of this email.
+
+${renderShoppingList(shoppingList)}
+`;
+  _.forEach(records, ([, fields,]) => {
+    email += `
+**Other items for ${fields.ticketID}:** ${fields.otherItems}
+`;
+  });
+  email += '\n\n## Ticket details:\n\n';
+  _.forEach(records, ([, fields,]) => {
+    email += renderTicketMetadata(fields);
+    email += '\n---\n';
+  });
+
+  const ticketIDs = _.join(_.map(records, ([, fields,]) => { return fields.ticketID; }), ', ');
+
+  return new Email(email, {
+    to: volunteer.email,
+    replyTo: 'noreply@bedstuystrong.com',
+    from: `shopping-lists@${emailDomain}`,
+    subject: `${ticketIDs}: Bed Stuy Strong Shopping List`,
+  });
 }
