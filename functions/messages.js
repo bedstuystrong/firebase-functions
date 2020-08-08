@@ -160,14 +160,14 @@ async function getDeliveryDMContent(fields) {
       content += '- $350 for a large household (6+ ppl)\n';
     }
 
-    // NOTE that we want the next next message to be a bullet only if we have a 'Spending Guidance section'
+    // NOTE that we want the next message to be a bullet only if we have a 'Spending Guidance section'
     content += '- ';
   }
 
   content +=
     'Please try to buy about a week’s worth of food for the household. It’s ok if you can’t get every single thing on the shopping list--the main goal is that the family’s nutritional needs are sufficiently met.\n';
 
-  content += `
+  const epilogue = `
 *When you complete the delivery, please:*
 - Take a photo of the receipt
 - Fill out <https://airtable.com/shrvHf4k5lRo0I8F4|this completion form> to let us know that the delivery is completed. If you need reimbursement please fill out the reimbursement section, and you will be reimbursed from our community fund within 24 hours.
@@ -179,20 +179,32 @@ _${safetyReminder}_
 
 :heart: :heart: :heart:`;
 
-  return content;
+  // We split the content into two separate sections because each section has a
+  // max length of 3000 characters, and some tickets have long delivery notes or
+  // things that cause us to overflow that. Breaking the epilogue into a
+  // separate section makes it more likely that both sections will be under 3000
+  // characters.
+  return [content, epilogue];
 }
 
-const renderDeliveryDM = (ticketID, deliveryDMContent, deliveryChannel) => (
+const renderDeliveryDM = (ticketID, [deliveryDMContent, deliveryDMEpilogue], deliveryChannel) => (
   {
     channel: deliveryChannel,
     as_user: true,
-    text: deliveryDMContent, // fallback for blocks section
+    text: `${deliveryDMContent}\n${deliveryDMEpilogue}`, // fallback for blocks section
     blocks: [
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
           text: deliveryDMContent
+        }
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: deliveryDMEpilogue
         }
       },
       {
@@ -214,7 +226,6 @@ const renderDeliveryDM = (ticketID, deliveryDMContent, deliveryChannel) => (
               type: 'plain_text',
               text: 'One list for all my tickets'
             },
-            style: 'primary',
             action_id: 'email_consolidated_shopping_list'
           }
         ]
