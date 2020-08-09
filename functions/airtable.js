@@ -465,7 +465,7 @@ class ReconciledOrder {
 /**
  * Reconcile bulk delivery orders with procured items from Bulk Order table.
  * @param {Date} deliveryDate Date these orders will go out.
- * @param {[string, Object, Object][] | undefined} allRoutes All bulk delivery routes for this week.
+ * @param {[string, Object, Object][]} [allRoutes] All bulk delivery routes for this week.
  * @returns {Promise<ReconciledOrder[]>} List of reconciled orders.
  */
 async function reconcileOrders(deliveryDate, allRoutes) {

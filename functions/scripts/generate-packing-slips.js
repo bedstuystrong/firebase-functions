@@ -143,18 +143,25 @@ async function savePackingSlips(orders) {
 }
 
 async function main() {
-  const { argv } = yargs.option('deliveryDate', {
-    coerce: (x) => new Date(x),
-    demandOption: true,
-    describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
-  });
+  const usageText = 'Usage: $0 --delivery-date YYYY-MM-DD'
+    + '\n\nGenerates packing slips as a PDF in the out/ directory. This needs to be sent to Brooklyn Packers prior to delivery day, so they can label the boxes to know what to pack in each one.'
+    + '\n\nPreconditions:'
+    + '\n\n  This script reads the Bulk Delivery Routes table for the specified date, and looks up the Intake Tickets attached to those routes, so check those tables for correctness before running this.'
+    + '\n\n  This script also reads the Bulk Order table to compare it with the total groceries requested in tickets scheduled for bulk delivery, to determine what extra items we did not procure, which will go in the Other section, so check to make sure that table has been updated to reflect the actually procured bulk items before running this.'
+    + '\n\n  You should run this together with email-bulk-shopping-volunteers.js in --dry-run mode, so that the shopping lists for shopping volunteers accurately match the items in the Other category on the packing slips.'
+    + '\n\n    You should probably run this to generate the packing slips, and run email-bulk-shopping-volunteers.js in --dry-run mode, and check at least a few tickets to make sure that the shopping lists match the Other category on the packing slips, before sending the packing slips to Brooklyn Packers or the shopping lists to our Shopping Volunteers.';
+  const { argv } = yargs
+    .option('deliveryDate', {
+      coerce: (x) => new Date(x),
+      demandOption: true,
+      describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
+    })
+    .usage(usageText);
 
   const orders = await reconcileOrders(argv.deliveryDate);
 
-  console.log('Creating packing slips...');
-
   const outPath = await savePackingSlips(orders);
-  console.log('Wrote packing slips to', outPath);
+  console.log(`********************************************************************************\n\nNEXT STEPS!\n\nPacking slips have been generated in ${outPath}.\n\nNow, make sure the Bulk Delivery Coordinator gets this forwarded to Brooklyn Packers!\n\n********************************************************************************`);
 }
 
 main()
