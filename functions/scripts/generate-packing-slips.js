@@ -24,7 +24,7 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
 
   const fields = order.intakeRecord[1];
 
-  let markdown = `# **${fields.ticketID}** (Route ${order.bulkDeliveryRoute.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
+  let markdown = `# **${_.trim(fields.ticketID)}** (Route ${order.bulkDeliveryRoute.name}): ${fields.requestName} (${fields.nearestIntersection.trim()})\n\n`;
 
   markdown += `**Delivery**: ${order.volunteer.Name}\n\n`;
   markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
@@ -34,35 +34,41 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
     : ['Non-perishable', 'Produce', 'Last'];
 
   const renderTable = (groups, categories) => {
+    const columns = (categories.length === 1 && categories[0] === 'General') ? ([
+      [categories[0], _.take(groups[categories[0]], _.ceil(groups[categories[0]].length / 2))],
+      [`${categories[0]} (cont.)`, _.drop(groups[categories[0]], _.ceil(groups[categories[0]].length / 2))]
+    ]) : (_.map(categories, (category) => {
+      return [category, groups[category]];
+    }));
     const numRows = _.max(
-      _.map(_.toPairs(groups), ([category, items]) => {
-        return _.includes(categories, category) ? items.length : 0;
+      _.map(columns, ([category, items]) => {
+        return _.includes(categories, category) && items ? items.length : 0;
       })
     );
     markdown += '| ';
-    _.forEach(categories, (category) => {
+    _.forEach(columns, ([category,]) => {
       markdown += ` ${category} |`;
     });
     markdown += '\n';
-    _.forEach(categories, () => {
+    _.forEach(columns, () => {
       markdown += ' --- |';
     });
     for (var i = 0; i < numRows; i++) {
       markdown += '\n|';
-      for (const category of categories) {
-        const items = groups[category];
+      // eslint-disable-next-line no-loop-func
+      _.forEach(columns, ([, items]) => {
         if (items === undefined || i >= items.length) {
           markdown += ' &nbsp; |';
         } else {
           markdown += ` ${items[i][1]} ${items[i][0]} |`;
         }
-      }
+      });
     }
     markdown += '\n';
   };
   renderTable(itemGroups, categoryOrder);
 
-  if (!singleCategory && (!_.isNull(fields.otherItems) || !_.isEqual(order.provided, order.requested))) {
+  if (singleCategory === 'General' && (!_.isNull(fields.otherItems) || !_.isEqual(order.provided, order.requested))) {
     const otherItems = order.getAdditionalItems();
     if (otherItems.length > 0) {
       markdown += '\n---\n';
@@ -74,16 +80,18 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
       const renderOtherTable = (items) => {
         const numCols = 2;
         const numRows = _.ceil(items.length / 2.0);
+        const itemsDescendingLength = _.sortBy(items, ({ item }) => {
+          return -item.length;
+        });
         markdown += '| Other |\n| --- |';
-        var i = 0;
         for (var row = 0; row < numRows; row++) {
           markdown += '\n|';
           for (var col = 0; col < numCols; col++) {
+            const i = row + col * numRows;
             if (i >= items.length) {
               markdown += ' &nbsp; |';
             } else {
-              markdown += ` ${items[i].quantity || ''} ${items[i].item} |`;
-              i++;
+              markdown += ` ${itemsDescendingLength[i].quantity || ''} ${itemsDescendingLength[i].item} |`;
             }
           }
         }
@@ -118,7 +126,7 @@ async function savePackingSlips(orders) {
 
   // Three sheets, one with Cleaning Bundle, one Fridge / Frozen, one with
   // everything else.
-  const sheetCategories = [null, 'Cleaning Bundle', 'Fridge / Frozen'];
+  const sheetCategories = ['General', 'Cleaning Bundle', 'Fridge / Frozen'];
   const outPaths = await Promise.all(_.flatMap(orders, (order) => {
     return _.map(sheetCategories, async (category, i) => {
       const markdown = renderPackingSlip(order, category, i);
@@ -149,7 +157,9 @@ async function main() {
     describe: 'Date of scheduled delivery (yyyy-mm-dd format)',
   });
 
-  const orders = await reconcileOrders(argv.deliveryDate);
+  const orders = _.sortBy(await reconcileOrders(argv.deliveryDate), ({ bulkDeliveryRoute }) => {
+    return _.toNumber(bulkDeliveryRoute.name);
+  });
 
   console.log('Creating packing slips...');
 

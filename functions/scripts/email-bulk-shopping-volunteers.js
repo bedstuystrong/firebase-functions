@@ -24,11 +24,7 @@ async function main() {
   // couldn't procure everything we needed. The "no route" section lets us ask
   // every custom shopper to get some bulk items and not sort them by tickets.
   const noRouteSection = {
-    items: [
-      {
-        item: 'Chicken: 9 individual 2 pound packs<br/>\n   Don\'t sort this chicken by ticket, just put all chicken together in a single bag, and hand directly to Hanna or Jackson for cold storage and packing.'
-      }
-    ]
+    items: []
   };
 
   /**
@@ -70,7 +66,7 @@ async function main() {
     const sortedRoutes = _.sortBy(routes, ([, fields]) => fields.name);
 
     const routeParameters = _.map(sortedRoutes, ([, fields]) => {
-      const { routeName } = fields;
+      const { name } = fields;
       const orders = _.sortBy(
         _.map(fields.intakeTickets, (ticketKey) => {
           return ordersByKey[ticketKey];
@@ -88,7 +84,7 @@ async function main() {
       const tickets = _.filter(allTicketParameters, ({ items }) => {
         return items.length > 0;
       });
-      return { name: routeName, tickets };
+      return { name, tickets };
     });
 
     const { shoppingVolunteerEmail, shoppingVolunteerName } = routes[0][1];
@@ -103,7 +99,7 @@ async function main() {
       deliveryDateString,
       warehouseMapsUrl,
       warehouseCoordinatorPhone,
-      noRouteSection,
+      noRouteSection: _.isEmpty(noRouteSection.items) ? null : noRouteSection,
       routes: routeParameters,
     };
   });
@@ -123,7 +119,10 @@ async function main() {
   });
 
   if (argv.dryRun) {
-    _.forEach(emails, (email) => console.log(email.render()));
+    _.forEach(emails, (email) => {
+      console.log('To:', email.render().to);
+      console.log(email.render().text);
+    });
   } else {
     await Promise.all(
       _.map(emails, (email) => {
