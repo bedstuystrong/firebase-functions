@@ -42,7 +42,7 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
     }));
     const numRows = _.max(
       _.map(columns, ([category, items]) => {
-        return _.includes(categories, category) ? items.length : 0;
+        return _.includes(categories, category) && items ? items.length : 0;
       })
     );
     markdown += '| ';
