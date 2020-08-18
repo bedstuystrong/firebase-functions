@@ -420,18 +420,9 @@ class ReconciledOrder {
   }
 
   bulkPurchasedItemsByGroup() {
-    const groups = _.groupBy(_.toPairs(this.provided), ([item]) => {
+    return _.groupBy(_.toPairs(this.provided), ([item]) => {
       return this.itemToCategory[item].category;
     });
-    const sorted = _.fromPairs(_.map(_.toPairs(groups), ([category, items]) => {
-      return [
-        category,
-        _.sortBy(items, (item) => {
-          return _.toNumber(this.itemToCategory[item[0]].order);
-        })
-      ];
-    }));
-    return sorted;
   }
 
   /**
