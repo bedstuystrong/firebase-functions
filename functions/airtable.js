@@ -350,6 +350,8 @@ async function getItemToNumAvailable(deliveryDate) {
  */
 async function getAllRoutes(deliveryDate) {
   const allRoutes = await getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate });
+  // We are no longer using separate shopping volunteers!
+  /*
   const routesWithoutShopper = _.filter(allRoutes, ([, fields]) => {
     return (
       fields.shoppingVolunteer === null || fields.shoppingVolunteer.length !== 1
@@ -362,6 +364,7 @@ async function getAllRoutes(deliveryDate) {
     }));
     throw new Error(msg);
   }
+  */
   return allRoutes;
 }
 
