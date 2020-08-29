@@ -3,35 +3,11 @@ const _ = require('lodash');
 const fs = require('fs');
 const moment = require('moment');
 const Mustache = require('mustache');
-const showdown = require('showdown');
 const yargs = require('yargs');
 
-const { getAllRoutes, getTicketsForRoutes, getRecordsWithFilter, reconcileOrders, BULK_DELIVERY_ROUTES_TABLE } = require('../airtable');
+// eslint-disable-next-line no-unused-vars
+const { getAllRoutes, getTicketsForRoutes, getRecordsWithFilter, reconcileOrders, BULK_DELIVERY_ROUTES_TABLE, ReconciledOrder } = require('../airtable');
 const { googleMapsUrl, Email } = require('../messages');
-
-function getEmailTemplateParameters(route, tickets) {
-  const ticketParameterMaps = tickets.map((ticket) => {
-    return Object.assign({}, ticket, {
-      phoneNumberNumbersOnly: _.replace(ticket.phoneNumber, /[^0-9]/g, ''),
-      mapsUrl: googleMapsUrl(ticket.address),
-      vulnerabilities: _.join(ticket.vulnerability, ', '),
-      groceryList: _.join(ticket.foodOptions, ', '),
-    });
-  });
-  return {
-    to: route.deliveryVolunteerEmail,
-    deliveryDateString: moment(route.deliveryDate).utc().format('MMMM Do'),
-    firstName: route.deliveryVolunteerName[0].split(' ')[0],
-    routeName: route.name,
-    ticketIDs: _.join(_.map(tickets, (fields) => {
-      return fields.ticketID;
-    }), ', '),
-    warehouseMapsUrl: googleMapsUrl('221 Glenmore Ave'),
-    arrivalTime: _.trim(route.arrivalTime),
-    warehouseCoordinatorPhone: functions.config().bulk_ops_team.warehouse_coordinator.phone_number,
-    tickets: ticketParameterMaps,
-  };
-}
 
 // Each week we might need custom shoppers to do some "bulk purchases" if we
 // couldn't procure everything we needed. The "no route" section lets us ask
@@ -51,8 +27,8 @@ const itemNeedsCustomShopping = ({ item }) => {
     _.endsWith(lowered, 'art kit')
     || _.endsWith(lowered, 'art kits')
     || lowered.match(/\d\s*books?\s/) !== null
-    || _.endsWith(lowered, 'bike helmet')
-    || _.endsWith(lowered, 'bike helmets')
+    || _.endsWith(lowered, 'helmet')
+    || _.endsWith(lowered, 'helmets')
   );
 };
 
@@ -67,7 +43,6 @@ const getShoppingListTemplateParameters = (route, orders) => {
     return items.length > 0;
   });
   const params = {
-    routeName: route.name,
     tickets
   };
   if (!_.isEmpty(noRouteSection.items)) {
@@ -75,6 +50,52 @@ const getShoppingListTemplateParameters = (route, orders) => {
   }
   return params;
 };
+
+/**
+ * Construct the mustache template parameter map.
+ * @param {Object} route route fields
+ * @param {ReconciledOrder[]} orders list of orders
+ */
+function getEmailTemplateParameters(route, orders) {
+  const ticketParameterMaps = orders.map((order) => {
+    const { intakeRecord: [, ticket,] } = order;
+    const additionalItems = order.getAdditionalItems();
+    const shoppingItems = _.map(
+      _.filter(additionalItems, itemNeedsCustomShopping),
+      ({ item, quantity }) => {
+        return `${quantity || ''} ${item}`.trim();
+      }
+    );
+    const warehouseSpecialtyItems = _.map(
+      _.filter(additionalItems, _.negate(itemNeedsCustomShopping)),
+      ({ item, quantity }) => {
+        return `${quantity || ''} ${item}`.trim();
+      }
+    );
+    return Object.assign({}, ticket, {
+      phoneNumberNumbersOnly: _.replace(ticket.phoneNumber, /[^0-9]/g, ''),
+      mapsUrl: googleMapsUrl(ticket.address),
+      vulnerabilities: _.join(ticket.vulnerability, ', '),
+      groceryList: _.join(ticket.foodOptions, ', '),
+      otherItems: _.join(shoppingItems, ', '),
+      warehouseSpecialtyItems: _.join(warehouseSpecialtyItems, ', '),
+    });
+  });
+  return {
+    to: route.deliveryVolunteerEmail,
+    deliveryDateString: moment(route.deliveryDate).utc().format('MMMM Do'),
+    firstName: route.deliveryVolunteerName[0].split(' ')[0],
+    routeName: route.name,
+    ticketIDs: _.join(_.map(orders, ({ intakeRecord: [, fields,]}) => {
+      return fields.ticketID;
+    }), ', '),
+    warehouseMapsUrl: googleMapsUrl('221 Glenmore Ave'),
+    arrivalTime: _.trim(route.arrivalTime),
+    warehouseCoordinatorPhone: functions.config().bulk_ops_team.warehouse_coordinator.phone_number,
+    tickets: ticketParameterMaps,
+    shoppingList: getShoppingListTemplateParameters(route, orders),
+  };
+}
 
 async function main() {
   const { argv } = yargs
@@ -105,46 +126,23 @@ async function main() {
 
   const templateParameterMaps = await Promise.all(_.map(routes, async (route) => {
     const ticketRecords = await getTicketsForRoutes([route]);
-    const ticketsFields = _.map(ticketRecords, ([, fields,]) => fields);
     const [, routeFields,] = route;
-    const orders = _.sortBy(
-      _.map(ticketRecords, ([ticketKey,]) => {
-        return ordersByKey[ticketKey];
-      }),
-      (order) => {
-        return order.intakeRecord[1].ticketID;
-      }
-    );
-    return {
-      email: getEmailTemplateParameters(routeFields, ticketsFields),
-      shoppingList: getShoppingListTemplateParameters(routeFields, orders)
-    };
+    const orders = _.map(ticketRecords, ([ticketKey,]) => {
+      return ordersByKey[ticketKey];
+    });
+    return getEmailTemplateParameters(routeFields, orders);
   }));
 
   const emailTemplateFilename = 'functions/templates/bulk-delivery-volunteer-email.md.mustache';
   const emailTemplate = (await fs.promises.readFile(emailTemplateFilename)).toString('utf-8');
 
-  const shoppingListTemplateFilename = 'functions/templates/bulk-shopping-volunteer-email.md.mustache';
-  const shoppingListTemplate = (await fs.promises.readFile(shoppingListTemplateFilename)).toString('utf-8');
-
-  const emails = _.map(templateParameterMaps, ({ email: emailView, shoppingList: shoppingListView }) => {
-    const markdown = Mustache.render(emailTemplate, emailView);
-    const shoppingListMarkdown = Mustache.render(shoppingListTemplate, shoppingListView);
-    const converter = new showdown.Converter({ tasklists: true });
-    const shoppingList = converter.makeHtml(shoppingListMarkdown);
+  const emails = _.map(templateParameterMaps, (view) => {
+    const markdown = Mustache.render(emailTemplate, view);
     return new Email(markdown, {
-      to: emailView.to,
+      to: view.to,
       cc: 'operations+bulk@bedstuystrong.com',
       replyTo: 'operations+bulk@bedstuystrong.com',
-      subject: `[BSS Bulk Ordering] ${emailView.deliveryDateString} Delivery Prep and Instructions for ${emailView.firstName}`,
-      attachments: [
-        {
-          content: Buffer.from(shoppingList).toString('base64'),
-          filename: 'shopping-list.html',
-          type: 'text/html',
-          disposition: 'attachment'
-        }
-      ]
+      subject: `[BSS Bulk Ordering] ${view.deliveryDateString} Delivery Prep and Instructions for ${view.firstName}`,
     });
   });
 

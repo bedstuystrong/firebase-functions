@@ -384,12 +384,7 @@ function getTicketsForRoute([, fields]) {
  * @param {[string, Object, Object][]} allRoutes Bulk delivery route records.
  */
 async function getTicketsForRoutes(allRoutes) {
-  return _.sortBy(
-    await Promise.all(_.flatMap(allRoutes, getTicketsForRoute)),
-    ([, fields]) => {
-      return fields.ticketID;
-    }
-  );
+  return await Promise.all(_.flatMap(allRoutes, getTicketsForRoute));
 }
 
 class ReconciledOrder {
@@ -479,7 +474,12 @@ async function reconcileOrders(deliveryDate, allRoutes) {
     })
   );
 
-  const intakeRecords = await getTicketsForRoutes(allRoutes);
+  const intakeRecords = _.sortBy(
+    await getTicketsForRoutes(allRoutes),
+    ([, fields]) => {
+      return fields.ticketID;
+    }
+  );
 
   const itemToNumAvailable = await getItemToNumAvailable(deliveryDate);
 

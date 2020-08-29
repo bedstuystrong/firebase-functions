@@ -2,25 +2,25 @@ Hi {{firstName}}!
 
 Thank you again for volunteering to help our neighbors.
 
-**We've assigned you Route {{routeName}} with the following tickets:
-{{ticketIDs}}**
+**We've assigned you Route {{routeName}} with the following tickets. We've
+listed your tickets in delivery order: {{ticketIDs}}**
 
 **Please arrive at Brooklyn Packers this Saturday, {{deliveryDateString}} at
-{{arrivalTime}} with your custom items already purchased.** See the attached
-shopping list for what to purchase.
+{{arrivalTime}} with your custom items already purchased.**
 
 Check out the instructions below. If any issues come up day-of, contact this
-week's Dispatcher: Jackson at {{warehouseCoordinatorPhone}}.
+week's Dispatcher: Olivia at {{warehouseCoordinatorPhone}}.
 
 ### Saturday Volunteer Instructions
 
 - [ ] **Get ready.** Please bring a pen or marker to the store for labeling
       bags. We also recommend printing this if you can—it helps to mark off
       tasks as they are completed.
-- [ ] **Go shopping for custom items.** See the attached shopping list for what
-      to purchase. Sort the items into bags by household, and label each bag
-      with the corresponding ticket ID. (They can all be purchased on one
-      receipt).
+- [ ] **Go shopping for custom items.** See the shopping list below for what to
+      purchase. Sort the items into bags by household, and label each bag with
+      the corresponding ticket ID. (They can all be purchased on one receipt).
+      You don't need to buy Warehouse Specialty Items, they're already at the
+      warehouse.
 - [ ] **Come to the Brooklyn Packers warehouse for pre-packed groceries at
       {{arrivalTime}}:** [221 Glenmore Ave, Gate 3, Brooklyn, NY
       11207]({{{warehouseMapsUrl}}})
@@ -37,6 +37,7 @@ week's Dispatcher: Jackson at {{warehouseCoordinatorPhone}}.
       - [ ] Pre-packed groceries (may be multiple bags or boxes per household)
       - [ ] Cleaning supplies
       - [ ] Perishables bag
+      - [ ] Warehouse Specialty Items (e.g. Art kits, books, etc.)
       - [ ] Water
 - [ ] **Please confirm that the ticket IDs on every box and bag match your route
       number/name.**
@@ -52,7 +53,30 @@ week's Dispatcher: Jackson at {{warehouseCoordinatorPhone}}.
 
 Thank you!
 
-----
+---
+{{#shoppingList}}
+### Shopping List
+
+{{#noRouteSection}}
+#### No Route Number
+
+{{#items}}
+- [ ] {{{item}}}
+{{/items}}
+
+{{/noRouteSection}}
+
+{{#tickets}}
+**Ticket {{ticketID}}** ({{conditions}})
+
+{{#items}}
+- [ ] {{quantity}} {{item}}
+{{/items}}
+
+---
+{{/tickets}}
+
+{{/shoppingList}}
 ### Tickets (Route {{routeName}})
 {{#tickets}}
 
@@ -68,7 +92,8 @@ Thank you!
 **Household Size**: {{householdSize}}<br/>
 
 **Grocery List**: {{groceryList}}<br/>
-**Custom Items**: {{otherItems}}<br/>
+**Custom Shopping Items**: {{otherItems}}<br/>
+**Warehouse Specialty Items**: {{warehouseSpecialtyItems}}<br/>
 {{#deliveryNotes}}**Notes for Delivery**: {{.}}<br/>{{/deliveryNotes}}
 
 ----
