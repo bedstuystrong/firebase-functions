@@ -456,6 +456,20 @@ class ReconciledOrder {
     // @ts-ignore eslint doesn't understand array structures I guess?
     return missingItems.concat(customItems);
   }
+
+  getWarehouseItems() {
+    const fields = this.intakeRecord[1];
+    const warehouseItems = fields.warehouseSpecialtyItems;
+    if (!warehouseItems) {
+      return [];
+    }
+    return _.map(
+      _.split(warehouseItems, ','),
+      (item) => {
+        return { item: _.trim(item), quantity: null };
+      }
+    );
+  }
 }
 
 /**

@@ -61,13 +61,13 @@ function getEmailTemplateParameters(route, orders) {
     const { intakeRecord: [, ticket,] } = order;
     const additionalItems = order.getAdditionalItems();
     const shoppingItems = _.map(
-      _.filter(additionalItems, itemNeedsCustomShopping),
+      additionalItems,
       ({ item, quantity }) => {
         return `${quantity || ''} ${item}`.trim();
       }
     );
     const warehouseSpecialtyItems = _.map(
-      _.filter(additionalItems, _.negate(itemNeedsCustomShopping)),
+      order.getWarehouseItems(),
       ({ item, quantity }) => {
         return `${quantity || ''} ${item}`.trim();
       }
@@ -91,7 +91,8 @@ function getEmailTemplateParameters(route, orders) {
     }), ', '),
     warehouseMapsUrl: googleMapsUrl('221 Glenmore Ave'),
     arrivalTime: _.trim(route.arrivalTime),
-    warehouseCoordinatorPhone: functions.config().bulk_ops_team.warehouse_coordinator.phone_number,
+    warehouseCoordinatorPhone1: functions.config().bulk_ops_team.warehouse_coordinator1.phone_number,
+    warehouseCoordinatorPhone2: functions.config().bulk_ops_team.warehouse_coordinator2.phone_number,
     tickets: ticketParameterMaps,
     shoppingList: getShoppingListTemplateParameters(route, orders),
   };

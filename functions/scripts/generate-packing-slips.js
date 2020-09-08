@@ -74,36 +74,41 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
   };
   renderTable(itemGroups, categorySet);
 
-  if (singleCategory === 'General' && (!_.isNull(fields.otherItems) || !_.isEqual(order.provided, order.requested))) {
+  if (singleCategory === 'General' && (!_.isNull(fields.otherItems) || !_.isNull(fields.warehouseItems) || !_.isEqual(order.provided, order.requested))) {
+    /**
+     * @param {[{ item: string, quantity: number | null }]} items List of
+     * items to purchase.
+     */
+    const renderOtherTable = (title, items) => {
+      const numCols = 2;
+      const numRows = _.ceil(items.length / 2.0);
+      const itemsDescendingLength = _.sortBy(items, ({ item }) => {
+        return -item.length;
+      });
+      markdown += `| ${title} |\n| --- |`;
+      for (var row = 0; row < numRows; row++) {
+        markdown += '\n|';
+        for (var col = 0; col < numCols; col++) {
+          const i = row + col * numRows;
+          if (i >= items.length) {
+            markdown += ' &nbsp; |';
+          } else {
+            markdown += ` ${itemsDescendingLength[i].quantity || ''} ${itemsDescendingLength[i].item} |`;
+          }
+        }
+      }
+      markdown += '\n';
+    };
+
     const otherItems = order.getAdditionalItems();
     if (otherItems.length > 0) {
       markdown += '\n---\n';
-
-      /**
-       * @param {[{ item: string, quantity: number | null }]} items List of
-       * items to purchase.
-       */
-      const renderOtherTable = (items) => {
-        const numCols = 2;
-        const numRows = _.ceil(items.length / 2.0);
-        const itemsDescendingLength = _.sortBy(items, ({ item }) => {
-          return -item.length;
-        });
-        markdown += '| Other |\n| --- |';
-        for (var row = 0; row < numRows; row++) {
-          markdown += '\n|';
-          for (var col = 0; col < numCols; col++) {
-            const i = row + col * numRows;
-            if (i >= items.length) {
-              markdown += ' &nbsp; |';
-            } else {
-              markdown += ` ${itemsDescendingLength[i].quantity || ''} ${itemsDescendingLength[i].item} |`;
-            }
-          }
-        }
-        markdown += '\n';
-      };
-      renderOtherTable(otherItems);
+      renderOtherTable('Other Items', otherItems);
+    }
+    const warehouseItems = order.getWarehouseItems();
+    if (warehouseItems.length > 0) {
+      markdown += '\n---\n';
+      renderOtherTable('Warehouse Items', warehouseItems);
     }
   }
 

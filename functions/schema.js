@@ -45,6 +45,7 @@ const INTAKE_SCHEMA = {
   costCategory: 'cost_category',
   foodOptions: 'Food Options',
   otherItems: 'Other Items',
+  warehouseSpecialtyItems: 'Warehouse Specialty Items',
   bulkRoute: 'Bulk Delivery Route',
   deliveryVolunteerRecordID: 'Delivery Volunteer Record ID',
 };
