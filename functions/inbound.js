@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
+const _ = require('lodash');
 
 const {
   middleware,
@@ -14,6 +15,7 @@ const {
   getRecord,
   INBOUND_TABLE,
   VOLUNTEER_FORM_TABLE,
+  INTAKE_TABLE,
 } = require('./airtable');
 
 
@@ -24,8 +26,6 @@ module.exports = {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const messageBody = req.body.Body;
 
-      // const phoneNumberId = await getPhoneNumberId(fromNumber);
-
       await createMessage(fromNumber, messageBody);
 
       res.set('Content-Type', 'text/xml');
@@ -33,6 +33,7 @@ module.exports = {
     });
   }),
 
+  /** DEPRECATED */
   voice: functions.https.onRequest((req, res) => {
     return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
@@ -44,17 +45,15 @@ module.exports = {
     return middleware(req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const recordingUrl = `${req.body.RecordingUrl}.mp3`;
-      const transcription = req.body.TranscriptionText;
 
-      // const phoneNumberId = await getPhoneNumberId(fromNumber);
-
-      await createVoicemail(fromNumber, recordingUrl, transcription);
+      await createVoicemail(fromNumber, recordingUrl, '');
 
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
     });
   }),
 
+  /** DEPRECATED */
   empty: functions.https.onRequest((req, res) => {
     return middleware(req, res, () => {
       res.set('Content-Type', 'text/xml');
@@ -63,28 +62,42 @@ module.exports = {
   }),
 
   callback: functions.https.onRequest(async (req, res) => {
-    const inboundRecordID = req.query.record;
+    const tableKey = req.query.table;
+    const recordID = req.query.record;
+    const volunteerID = req.query.volunteer;
 
-    const [, inboundFields,] = await getRecord(INBOUND_TABLE, inboundRecordID);
-    if (!inboundFields.intakeVolunteer) {
-      res.status(400).send(`No volunteer associated with record ${inboundRecordID}`);
+    if (!(tableKey && recordID && volunteerID)) {
+      res.status(400).send('Missing required query params');
+      return;
     }
 
-    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, inboundFields.intakeVolunteer);
+    const table = _.get({
+      inbound: INBOUND_TABLE,
+      intake: INTAKE_TABLE,
+    }, tableKey);
+    if (!table) {
+      res.status(400).send(`Unsupported table ${tableKey}`);
+      return;
+    }
+
+    const [, recordFields,] = await getRecord(table, recordID);
+    const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, volunteerID);
     
-    const inboundPhoneNumber = parsePhoneNumberFromString(inboundFields.phoneNumber, 'US').format('E.164');
+    const recordPhoneNumber = parsePhoneNumberFromString(recordFields.phoneNumber, 'US').format('E.164');
     const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerFields.phoneNumber, 'US').format('E.164');
 
-    if (!inboundPhoneNumber || !volunteerPhoneNumber) {
+    if (!recordPhoneNumber || !volunteerPhoneNumber) {
       console.error('Missing a phone number', {
-        inboundPhoneNumber,
+        recordPhoneNumber,
         volunteerPhoneNumber,
       });
+      res.status(500).send('Missing a phone number on one or more records');
+      return;
     }
 
-    await requestConnectCall(volunteerPhoneNumber, inboundPhoneNumber);
+    await requestConnectCall(volunteerPhoneNumber, recordPhoneNumber);
 
-    res.status(200).send(`You'll get a call from Bed-Stuy Strong shortly connecting you to ${inboundFields.phoneNumber}`);
+    res.status(200).send(`You'll get a call at ${volunteerFields.phoneNumber} from Bed-Stuy Strong shortly connecting you to ${recordFields.phoneNumber}`);
   }),
 
 };

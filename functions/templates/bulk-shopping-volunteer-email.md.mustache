@@ -1,0 +1,60 @@
+Hi {{firstName}}!
+
+Thank you again for volunteering to shop for these custom items!
+
+Please sort the items so that each ticket ID has its own bag or bags, and label
+each one of the bags with its corresponding **route number and ticket ID**.
+
+There are a variety of ways you can label the bags:
+
+1. Write the route number and ticket ID on a slip of paper or post-it note and
+   staple or tape it to the bag.
+2. Write the route number and ticket ID on a slip of paper or post-it and just
+   set it inside the bag with the groceries.
+3. Write the route number and ticket ID directly on the grocery bag(s) with a
+   Sharpie or other pen/marker that won't smear or rub off.
+
+Please remember to bring at least one pen and some paper with you to the grocery
+store!
+
+If you're **shopping for your own tickets**, that's great, just make sure you
+can do your shopping and get to the warehouse on time (the arrival time will be
+in your delivery email instructions). Please wait until you've completed your
+deliveries to submit the reimbursement form.
+
+If you're **shopping for a delivery volunteer**, please coordinate with them to
+have them meet you at the store to pick up those items, with enough time for
+them to get to the warehouse. Submit the [reimbursement
+form](https://airtable.com/shrvHf4k5lRo0I8F4) in the usual way, with the total
+amount you spent and images of your receipt(s). Just pick one ticket ID from
+your list and enter that. Please add a note that your reimbursement form is for
+**custom items shopping for bulk purchasing households on
+{{deliveryDateString}}**.
+
+Thanks so much! Call Francesca at {{warehouseCoordinatorPhone}} with any
+questions!
+
+# Shopping List
+
+{{#noRouteSection}}
+## No Route Number
+
+{{#items}}
+ - [ ] {{{item}}}
+{{/items}}
+
+{{/noRouteSection}}
+
+{{#routes}}
+## Route {{name}}
+
+{{#tickets}}
+**Ticket {{ticketID}}** ({{conditions}})
+
+{{#items}}
+ - [ ] {{quantity}} {{item}}
+{{/items}}
+
+---
+{{/tickets}}
+{{/routes}}

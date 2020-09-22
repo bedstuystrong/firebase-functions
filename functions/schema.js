@@ -17,6 +17,7 @@ const INBOUND_SCHEMA = {
   voicemailRecording: 'Voicemail Recording',
   intakeVolunteer: 'Intake Volunteer',
   intakeTime: 'Intake Time',
+  otherInbounds: 'Other Inbounds',
 };
 
 const INTAKE_SCHEMA = {
@@ -42,7 +43,13 @@ const INTAKE_SCHEMA = {
   slackPostThreadLink: 'Slack Post Thread Link',
   dueDate: 'Due Date',
   costCategory: 'cost_category',
+  foodOptions: 'Food Options',
+  otherItems: 'Other Items',
+  bulkRoute: 'Bulk Delivery Route',
+  deliveryVolunteerRecordID: 'Delivery Volunteer Record ID',
 };
+
+const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
 
 const REIMBURSEMENT_SCHEMA = {
   status: STATUS,
@@ -72,6 +79,63 @@ const META_SCHEMA = {
   name: 'Name',
 };
 
+const ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA = {
+  item: 'Item',
+  unit: 'Unit',
+  category: 'Category',
+  order: 'Order',
+  1: '1 Person(s)',
+  2: '2 Person(s)',
+  3: '3 Person(s)',
+  4: '4 Person(s)',
+  5: '5 Person(s)',
+  6: '6 Person(s)',
+  7: '7 Person(s)',
+  8: '8 Person(s)',
+};
+
+const BULK_ORDER_SCHEMA = {
+  item: 'Item',
+  unit: 'Unit',
+  quantity:  'Quantity',
+  deliveryDate: 'Bulk Delivery Date',
+};
+
+const BULK_DELIVERY_ROUTES_SCHEMA = {
+  name: 'Name',
+  intakeTickets: 'Intake Tickets',
+  deliveryVolunteer: 'Delivery Volunteer',
+  deliveryVolunteerEmail: 'Delivery Volunteer Email Address',
+  deliveryVolunteerName: 'Delivery Volunteer Name',
+  deliveryDate: 'Delivery Date',
+  arrivalTime: 'Warehouse Arrival Time',
+  shoppingVolunteer: 'Shopping Volunteer',
+  shoppingVolunteerEmail: 'Shopping Volunteer Email Address',
+  shoppingVolunteerName: 'Shopping Volunteer Name',
+};
+
+const ITEM_DIRECTORY_SCHEMA = {
+  name: 'Name',
+  category: 'Category',
+  perishable: 'Perishable',
+  dietaryRestrictions: 'Dietary Restrictions',
+};
+
+const INBOUND_STATUSES = {
+  intakeNeeded: 'Intake Needed',
+  inProgress: 'In Progress',
+  intakeComplete: 'Intake Complete',
+  duplicate: 'Duplicate',
+  outsideBedStuy: 'Outside Bed-Stuy',
+  callBack: 'Call Back',
+  question: 'Question/Info',
+  thankYou: 'Thank you!',
+  spanishIntakeNeeded: 'Spanish-Intake needed',
+  noNeed: 'No longer needs assistance',
+  phoneTag: 'Phone Tag',
+  outOfService: 'Out of Service/Cannot Reach',
+};
+
 const normalize = (object, schema) => {
   const invertedSchema = _.invert(schema);
   const normalized = _.mapKeys(object, (_value, key) => (invertedSchema[key] || key));
@@ -95,8 +159,14 @@ const denormalize = (object, schema) => {
 };
 
 module.exports = {
+  BULK_DELIVERY_ROUTES_SCHEMA,
+  BULK_DELIVERY_STATUSES,
+  BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
+  INBOUND_STATUSES,
   INTAKE_SCHEMA,
+  ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA,
+  ITEM_DIRECTORY_SCHEMA,
   META,
   META_SCHEMA,
   META_STORE_KEYS,
