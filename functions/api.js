@@ -1,6 +1,7 @@
 const functions = require('firebase-functions');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const allSettled = require('promise.allsettled');
+const _ = require('lodash');
 
 const {
   getRecordsWithPhoneNumber,
@@ -10,6 +11,8 @@ const {
 } = require('./airtable');
 
 allSettled.shim();
+
+const acceptableFields = ['ticketID', 'status', 'record ID', 'requestName', 'nearestIntersection', 'phoneNumber', 'dateCreated'];
 
 module.exports = {
 
@@ -31,7 +34,9 @@ module.exports = {
       const [, intakeVolunteer, ] = await getRecord(VOLUNTEER_FORM_TABLE, fields.intakeVolunteer);
       const [, deliveryVolunteer, ] = await getRecord(VOLUNTEER_FORM_TABLE, fields.deliveryVolunteer);
 
-      return Object.assign(fields, {
+      const filteredFields = _.pick(fields, acceptableFields);
+
+      return Object.assign(filteredFields, {
         intakeVolunteer: intakeVolunteer.name,
         deliveryVolunteer: deliveryVolunteer.name,
       });

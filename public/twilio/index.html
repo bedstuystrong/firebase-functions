@@ -12,6 +12,21 @@
       font-family: sans-serif;
     }
 
+    footer {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+    }
+    footer h1 {
+      font-size: 0.9rem;
+      margin: 1rem;
+      text-align: right;
+      opacity: 0.5;
+    }
+    footer h1:hover {
+      opacity: 1;
+    }
+
     .ticket {
       margin: 24px;
       color: #444;
@@ -56,8 +71,13 @@
     .ticket-name {
       margin: 0.5rem 0;
     }
-    .ticket-phoneNumber {
+    .ticket-nearestIntersection {
       margin: 0;
+      font-size: 0.8rem;
+      opacity: 0.85;
+    }
+    .ticket-phoneNumber {
+      margin-bottom: 0;
       opacity: 0.75;
     }
 
@@ -68,6 +88,13 @@
       font-size: 0.8rem;
       opacity: 0.9;
     }
+
+    #loading {
+      display: none;
+    }
+    #loading.visible {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -76,10 +103,11 @@
       <div class="ticket-row">
         <div class="ticket-id">[[ticketID]]</div>
         <div class="ticket-status ticket-status--complete">[[status]]</div>
-        <a class="ticket-permalink" href="[[record ID]]" target="_blank">View in Airtable</a>
+        <a class="ticket-permalink" href="https://airtable.com/tbljexnPd5eBpLilw/[[record ID]]" target="_blank">View in Airtable</a>
       </div>
       <div>
         <h3 class="ticket-name">[[requestName]]</h3>
+        <p class="ticket-nearestIntersection">[[nearestIntersection]]</p>
         <h5 class="ticket-phoneNumber">[[phoneNumber]]</h5>
       </div>
       <div class="ticket-row">
@@ -88,18 +116,26 @@
     </div>
   </template>
   <div id="tickets">
-
+    <div id="loading">Loading...</div>
   </div>
+  <footer>
+    <h1>Bed-Stuy Strong 💕</h1>
+  </footer>
   <script type="text/javascript">
+    const apiBase = 'https://us-central1-bedstuystrong-automation-a4b75.cloudfunctions.net';
+
     if (window === window.top) {
       window.location = 'https://bedstuystrong.com';
     } else {
       const template = document.getElementById('template');
       const ticketContainer = document.getElementById('tickets');
+      const loadingIndicator = document.getElementById('loading');
       const params = new URLSearchParams(window.location.search);
-      const apiUrl = 'https://us-central1-bedstuystrong-automation-a4b75.cloudfunctions.net/api-findTicketsByPhoneNumber';
+      const apiUrl = `${apiBase}/api-findTicketsByPhoneNumber`;
 
       if (params.get('phoneNumber')) {
+        loadingIndicator.classList.add('visible');
+
         fetch(`${apiUrl}?phoneNumber=${encodeURIComponent(params.get('phoneNumber'))}`).then(response => {
           if (!response.ok) {
             throw new Error(response.statusText);
@@ -120,6 +156,7 @@
           const newTemplate = document.createElement('template');
           newTemplate.innerHTML = markup;
           ticketContainer.appendChild(newTemplate.content);
+          loadingIndicator.classList.remove('visible');
         });
       }
     }
