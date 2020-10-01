@@ -12,21 +12,6 @@
       font-family: sans-serif;
     }
 
-    footer {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-    }
-    footer h1 {
-      font-size: 0.9rem;
-      margin: 1rem;
-      text-align: right;
-      opacity: 0.5;
-    }
-    footer h1:hover {
-      opacity: 1;
-    }
-
     .ticket {
       margin: 24px;
       color: #444;
@@ -91,6 +76,7 @@
 
     #loading {
       display: none;
+      padding: 1rem;
     }
     #loading.visible {
       display: block;
@@ -118,9 +104,6 @@
   <div id="tickets">
     <div id="loading">Loading...</div>
   </div>
-  <footer>
-    <h1>Bed-Stuy Strong 💕</h1>
-  </footer>
   <script type="text/javascript">
     const apiBase = 'https://us-central1-bedstuystrong-automation-a4b75.cloudfunctions.net';
 
