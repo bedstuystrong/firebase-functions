@@ -114,12 +114,14 @@
       const ticketContainer = document.getElementById('tickets');
       const loadingIndicator = document.getElementById('loading');
       const params = new URLSearchParams(window.location.search);
+      const accountSid = params.get('accountSid');
+      const phoneNumber = params.get('phoneNumber');
       const apiUrl = `${apiBase}/api-findTicketsByPhoneNumber`;
 
-      if (params.get('phoneNumber')) {
+      if (phoneNumber) {
         loadingIndicator.classList.add('visible');
 
-        fetch(`${apiUrl}?phoneNumber=${encodeURIComponent(params.get('phoneNumber'))}`).then(response => {
+        fetch(`${apiUrl}?phoneNumber=${encodeURIComponent(phoneNumber)}&accountSid=${encodeURIComponent(accountSid)}`).then(response => {
           if (!response.ok) {
             throw new Error(response.statusText);
           }

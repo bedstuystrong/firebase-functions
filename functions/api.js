@@ -27,6 +27,10 @@ module.exports = {
       res.json([]);
     }
 
+    if (!req.query.accountSid || req.query.accountSid !== functions.config().twilio.mass_messaging.sid) {
+      res.json([]);
+    }
+
     const phoneNumber = parsePhoneNumberFromString(req.query.phoneNumber).formatNational();
     const tickets = await getRecordsWithPhoneNumber(INTAKE_TABLE, phoneNumber);
 
