@@ -18,17 +18,6 @@
         "destination": "https://docs.google.com/document/d/1b9RVSexqztRlLpDPT603UTORNUpkhJXtXq8BPHH_mTw/edit?usp=sharing",
         "type": 302
       }
-    ],
-    "headers": [
-      {
-        "source": "/twilio",
-        "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "frame-ancestors https://flex.twilio.com"
-          }
-        ]
-      }
     ]
   },
   "emulators": {
