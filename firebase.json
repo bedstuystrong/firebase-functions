@@ -17,6 +17,11 @@
         "source": "/systems",
         "destination": "https://docs.google.com/document/d/1b9RVSexqztRlLpDPT603UTORNUpkhJXtXq8BPHH_mTw/edit?usp=sharing",
         "type": 302
+      },
+      {
+        "source": "/vote",
+        "destination": "/resources/vote",
+        "type": 302
       }
     ]
   },
