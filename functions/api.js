@@ -10,16 +10,22 @@ const {
 
 allSettled.shim();
 
+const IS_PROD = functions.config().environment.type === 'prod';
+
 const acceptableFields = ['ticketID', 'status', 'recordID', 'requestName', 'nearestIntersection', 'phoneNumber', 'dateCreated', 'dateCompleted'];
 
 module.exports = {
 
   findTicketsByPhoneNumber: functions.https.onRequest(async (req, res) => {
+    if (IS_PROD) {
+      res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com');
+    } else {
+      res.set('Access-Control-Allow-Origin', 'http://localhost:3000');
+    }
+
     if (!req.headers.origin) {
       return res.status(401).send('Unauthorized');
     }
-
-    res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com');
 
     if (!req.query.phoneNumber) {
       res.json([]);
