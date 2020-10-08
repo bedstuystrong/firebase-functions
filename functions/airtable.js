@@ -128,11 +128,7 @@ async function getRecordsWithStatus(table, status) {
 }
 
 async function getRecordsWithPhoneNumber(table, phoneNumber) {
-  const query = base(table).select({
-    filterByFormula: `{Phone Number} = "${phoneNumber}"`
-  });
-  const records = await query.all();
-  return records.map(normalizeRecords(table));
+  return getRecordsWithFilter(table, { phoneNumber });
 }
 
 // Returns only intake tickets whose status has changed since we last checked. If `includeNullStatus`
