@@ -5,8 +5,6 @@ const _ = require('lodash');
 
 const {
   getRecordsWithPhoneNumber,
-  // getRecord,
-  // VOLUNTEER_FORM_TABLE,
   INTAKE_TABLE,
 } = require('./airtable');
 
@@ -21,9 +19,7 @@ module.exports = {
       return res.status(401).send('Unauthorized');
     }
 
-    // res.set('Access-Control-Allow-Origin', 'https://bedstuystrong-automation-a4b75.web.app');
-    // res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com ');
-    res.set('Access-Control-Allow-Origin', 'http://localhost:3000');
+    res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com');
 
     if (!req.query.phoneNumber) {
       res.json([]);
@@ -44,26 +40,6 @@ module.exports = {
     });
 
     res.json(cleanTickets);
-
-    // const ticketsWithVolunteers = await Promise.allSettled(tickets.map(async ([, fields, ]) => {
-    //   const [, intakeVolunteer, ] = await getRecord(VOLUNTEER_FORM_TABLE, fields.intakeVolunteer);
-    //   const [, deliveryVolunteer, ] = await getRecord(VOLUNTEER_FORM_TABLE, fields.deliveryVolunteer);
-
-    //   const filteredFields = _.pick(fields, acceptableFields);
-
-    //   return Object.assign(filteredFields, {
-    //     phoneNumber: req.query.phoneNumber,
-    //     intakeVolunteer: intakeVolunteer.name,
-    //     deliveryVolunteer: deliveryVolunteer.name,
-    //   });
-    // }));
-
-    // TODO
-    // if (_.some(ticketsWithVolunteers, ['status', 'rejected'])) {
-    //    handle error
-    // }
-
-    // res.json(ticketsWithVolunteers.map(result => result.value));
   }),
 
 };
