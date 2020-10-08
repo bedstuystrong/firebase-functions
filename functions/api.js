@@ -20,7 +20,7 @@ module.exports = {
     if (IS_PROD) {
       res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com');
     } else {
-      res.set('Access-Control-Allow-Origin', 'http://localhost:3000');
+      res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com http://localhost:3000');
     }
 
     if (!req.headers.origin) {
