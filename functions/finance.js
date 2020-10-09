@@ -68,8 +68,8 @@ const extractPaymentDetails = (platform, email) => {
   switch (platform) {
   case 'venmo': {
     details.platform = 'Venmo';
-    const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) paid you (\$[\d\.,]+)/);
-    const toMatches = email.subject.match(/You paid (.+) (\$[\d\.,]+)/);
+    const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) paid you (\$[\d.,]+)/);
+    const toMatches = email.subject.match(/You paid (.+) (\$[\d.,]+)/);
 
     if (fromMatches) {
       details.direction = 'In';
@@ -84,8 +84,8 @@ const extractPaymentDetails = (platform, email) => {
   }
   case 'zelle': {
     details.platform = 'Zelle';
-    const fromMatches = email.text.match(/tell you that (.*) sent ([\$\d\.,]+) with/);
-    const toMatches = email.text.match(/that you sent (\$[\d\.,]+) to (.*) on/);
+    const fromMatches = email.text.match(/tell you that (.*) sent ([$\d.,]+) with/);
+    const toMatches = email.text.match(/that you sent (\$[\d.,]+) to (.*) on/);
 
     if (fromMatches) {
       details.direction = 'In';
@@ -102,8 +102,8 @@ const extractPaymentDetails = (platform, email) => {
     details.platform = 'Paypal';
     const text = email.html.replace(/(<([^>]+)>)/ig, '');
     console.log('paypal text', text)
-    const fromMatches = text.match(/(.*) sent you ([\$\d\.,]+)/);
-    const toMatches = text.match(/You sent ([\$\d\.,]+) USD to (.*)/);
+    const fromMatches = text.match(/(.*) sent you ([$\d.,]+)/);
+    const toMatches = text.match(/You sent ([$\d.,]+) USD to (.*)/);
     const noteMatches = text.match(/\[image: quote\] (.*) \[image: quote\]/);
 
     if (fromMatches) {
@@ -124,8 +124,8 @@ const extractPaymentDetails = (platform, email) => {
   }
   case 'googlepay': {
     details.platform = 'Google Pay';
-    const fromMatches = email.subject.match(/(.*) sent you ([\$\d\.,]+)/);
-    const toMatches = email.subject.match(/You sent ([^\$]+) ([\$\d\.,]+)/);
+    const fromMatches = email.subject.match(/(.*) sent you ([$\d.,]+)/);
+    const toMatches = email.subject.match(/You sent ([^$]+) ([$\d.,]+)/);
 
     if (fromMatches) {
       details.direction = 'In';
@@ -141,9 +141,9 @@ const extractPaymentDetails = (platform, email) => {
   }
   case 'cashapp': {
     details.platform = 'Cash App';
-    const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) sent you (\$[\d\.,]+)(?: for (.*))?/);
-    const toMatches = email.subject.match(/You sent (\$[\d\.,]+) to (.*)/);
-    const toAcceptedMatches = email.subject.match(/(?:Fwd: )?(.*) just accepted the (\$[\d\.,]+) you sent for (.*)/);
+    const fromMatches = email.subject.match(/(?:Fwd:\s)?(.+) sent you (\$[\d.,]+)(?: for (.*))?/);
+    const toMatches = email.subject.match(/You sent (\$[\d.,]+) to (.*)/);
+    const toAcceptedMatches = email.subject.match(/(?:Fwd: )?(.*) just accepted the (\$[\d.,]+) you sent for (.*)/);
 
     if (fromMatches) {
       details.direction = 'In';
