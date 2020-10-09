@@ -47,6 +47,8 @@ const INTAKE_SCHEMA = {
   otherItems: 'Other Items',
   bulkRoute: 'Bulk Delivery Route',
   deliveryVolunteerRecordID: 'Delivery Volunteer Record ID',
+  recordID: 'record ID',
+  dateCompleted: 'Completion_Date',
 };
 
 const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
