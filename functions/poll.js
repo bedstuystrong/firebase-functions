@@ -30,6 +30,7 @@ const {
   getIntakePostContent,
   getIntakePostDetails,
   getDeliveryDMContent,
+  renderDeliveryDM,
   getTicketSummaryBlocks,
 } = require('./messages');
 
@@ -108,77 +109,85 @@ async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
 async function onNewInbound(id, fields, ) {
   console.log('onNewInbound', { id: id, phoneNumber: fields.phoneNumber });
 
-  const lastRecord = await getLastNonDuplicate(fields.phoneNumber);
+  const UNKNOWN_CALLER_NUMBER = '696687';
 
   let newStatus = null;
 
-  if (_.isNull(lastRecord)) {
-    console.log('Did not find a previous record');
-
+  if (fields.method === 'Email') {
+    // TODO we could do deduping of emails as well, but its just not worth it atm
+    newStatus = INBOUND_STATUSES.intakeNeeded;
+  } else if (fields.phoneNumber === UNKNOWN_CALLER_NUMBER) {
+    // If the caller is unknown, we always need to handle the record individually
     newStatus = INBOUND_STATUSES.intakeNeeded;
   } else {
-    const [lastRecordId, lastRecordFields,] = lastRecord;
-    const lastStatus = lastRecordFields.status || lastRecordFields.statusDerived;
+    const lastRecord = await getLastNonDuplicate(fields.phoneNumber);
 
-    console.log('Found previous record', { id: lastRecord.id, status: lastStatus });
+    if (_.isNull(lastRecord)) {
+      console.log('Did not find a previous record');
 
-    if (
-      lastStatus === INBOUND_STATUSES.intakeNeeded ||
-      lastStatus === INBOUND_STATUSES.spanishIntakeNeeded ||
-      lastStatus === INBOUND_STATUSES.inProgress
-    ) {
-      // We haven't called them back yet
-      newStatus = INBOUND_STATUSES.duplicate;
-    } else if (lastStatus === INBOUND_STATUSES.intakeComplete) {
-      // TODO : check the ticket for this record to see if it has been completed, if not make this 'Follow Up'
       newStatus = INBOUND_STATUSES.intakeNeeded;
-    } else if (lastStatus === INBOUND_STATUSES.callBack) {
-      // We are already planning on calling them back
-      newStatus = INBOUND_STATUSES.duplicate;
-    } else if (
-      // TODO : no pickup needs to be phased out
-      lastStatus === INBOUND_STATUSES.noPickup ||
-      lastStatus === INBOUND_STATUSES.phoneTag
-    ) {
-      // Mark the original ticket as call back, and mark this one a duplicate
-      await updateRecord(
-        INBOUND_TABLE,
-        lastRecordId,
-        {
-          statusDerived: INBOUND_STATUSES.callBack,
-        }
-      );
-
-      newStatus = INBOUND_STATUSES.duplicate;
-    } else if (
-      lastStatus === INBOUND_STATUSES.thankYou ||
-      lastStatus === INBOUND_STATUSES.question ||
-      lastStatus === INBOUND_STATUSES.noNeed
-    ) {
-      // This could be a new request
-      newStatus = INBOUND_STATUSES.intakeNeeded;
-    } else if (lastStatus === INBOUND_STATUSES.outsideBedStuy) {
-      newStatus = INBOUND_STATUSES.intakeNeeded;
-    } else if (lastStatus === INBOUND_STATUSES.duplicate) {
-      throw Error('Should not have gotten a "duplicate" status from "getLastNonDuplicate"');
     } else {
-      console.error('Encountered an invalid status', { status: lastStatus });
-    }
+      const [lastRecordId, lastRecordFields,] = lastRecord;
+      const lastStatus = lastRecordFields.status;
 
-    // Keep track of duplicate tickets in the orginal record
-    if (newStatus === INBOUND_STATUSES.duplicate) {
-      await updateRecord(
-        INBOUND_TABLE,
-        lastRecordId,
-        {
-          otherInbounds: _.uniq(
-            _.concat(
-              lastRecordFields.otherInbounds || [],
-              id,
-            )
-          ),
-        },
-      );
+      console.log('Found previous record', { id: lastRecordId, status: lastStatus });
+
+      if (
+        lastStatus === INBOUND_STATUSES.intakeNeeded ||
+        lastStatus === INBOUND_STATUSES.spanishIntakeNeeded ||
+        lastStatus === INBOUND_STATUSES.inProgress
+      ) {
+        // We haven't called them back yet
+        newStatus = INBOUND_STATUSES.duplicate;
+      } else if (lastStatus === INBOUND_STATUSES.intakeComplete) {
+        // TODO : check the ticket for this record to see if it has been completed, if not make this 'Follow Up'
+        newStatus = INBOUND_STATUSES.intakeNeeded;
+      } else if (lastStatus === INBOUND_STATUSES.callBack) {
+        // We are already planning on calling them back
+        newStatus = INBOUND_STATUSES.duplicate;
+      } else if (
+        lastStatus === INBOUND_STATUSES.phoneTag || lastStatus === INBOUND_STATUSES.outOfService
+      ) {
+        // Mark the original ticket as call back, and mark this one a duplicate
+        await updateRecord(
+          INBOUND_TABLE,
+          lastRecordId,
+          {
+            status: INBOUND_STATUSES.callBack,
+          }
+        );
+
+        newStatus = INBOUND_STATUSES.duplicate;
+      } else if (
+        lastStatus === INBOUND_STATUSES.thankYou ||
+        lastStatus === INBOUND_STATUSES.question ||
+        lastStatus === INBOUND_STATUSES.noNeed
+      ) {
+        // This could be a new request
+        newStatus = INBOUND_STATUSES.intakeNeeded;
+      } else if (lastStatus === INBOUND_STATUSES.outsideBedStuy) {
+        newStatus = INBOUND_STATUSES.intakeNeeded;
+      } else if (lastStatus === INBOUND_STATUSES.duplicate) {
+        throw Error('Should not have gotten a "duplicate" status from "getLastNonDuplicate"');
+      } else {
+        console.error('Encountered an invalid status', { status: lastStatus });
+      }
+
+      // Keep track of duplicate tickets in the orginal record
+      if (newStatus === INBOUND_STATUSES.duplicate) {
+        await updateRecord(
+          INBOUND_TABLE,
+          lastRecordId,
+          {
+            otherInbounds: _.uniq(
+              _.concat(
+                lastRecordFields.otherInbounds || [],
+                id,
+              )
+            ),
+          },
+        );
+      }
     }
   }
 
@@ -188,36 +197,13 @@ async function onNewInbound(id, fields, ) {
 
   console.log('Setting new status', { newStatus });
 
-  let fieldsDelta = {
-    statusDerived: newStatus,
-  };
-
-  // NOTE that until we fully switch over to automated status, we should manually verify 
-  // the dervied status when it is not "intake needed"
-  if (newStatus === INBOUND_STATUSES.intakeNeeded) {
-    fieldsDelta.status = newStatus;
-  }
-
   await updateRecord(
     INBOUND_TABLE,
     id,
-    fieldsDelta,
+    {
+      status: newStatus,
+    },
   );
-
-  return {};
-}
-
-// TODO once we transition to fully automated status we can remove this
-async function onIntakeOther(id, fields, ) {
-  if (!_.isNull(fields.status) && fields.status !== fields.statusDerived) {
-    await updateRecord(
-      INBOUND_TABLE,
-      id,
-      {
-        statusDerived: fields.status,
-      },
-    );
-  }
 
   return {};
 }
@@ -227,15 +213,38 @@ async function onIntakeOther(id, fields, ) {
 
 // TODO : move slack calls to own file
 
+async function updateTicketPost(handler, fields, meta) {
+  const ticketResponse = await bot.chat.update({
+    channel: meta.intakePostChan,
+    ts: meta.intakePostTs,
+    text: await getIntakePostContent(fields),
+  });
+
+  if (ticketResponse.ok) {
+    console.log(`${handler}: Slack post updated`, {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+    });
+  } else {
+    console.error(`${handler}: Error updating Slack post`, {
+      channel: meta.intakePostChan,
+      timestamp: meta.intakePostTs,
+      ticket: fields.ticketID,
+      response: ticketResponse,
+    });
+  }
+  return ticketResponse;
+}
+
 async function onIntakeReady(id, fields, meta) {
   console.log('onIntakeReady', { record: id, ticket: fields.ticketID });
 
-  // TODO : handle going back from assigned state
-
   if (meta.intakePostChan || meta.intakePostTs) {
-    console.error('onIntakeReady: Already processed ticket', {
-      ticket: fields.ticketID,
-    });
+    const ticketResponse = await updateTicketPost('onIntakeReady', fields, meta);
+    if (!ticketResponse.ok) {
+      return null;
+    }
     return {};
   }
 
@@ -370,25 +379,8 @@ async function onIntakeAssigned(id, fields, meta) {
     return null;
   }
 
-  const ticketResponse = await bot.chat.update({
-    channel: meta.intakePostChan,
-    ts: meta.intakePostTs,
-    text: await getIntakePostContent(fields),
-  });
-
-  if (ticketResponse.ok) {
-    console.log('onIntakeAssigned: Slack post updated', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-    });
-  } else {
-    console.error('onIntakeAssigned: Error updating Slack post', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-      response: ticketResponse,
-    });
+  const ticketResponse = await updateTicketPost('onIntakeAssigned', fields, meta);
+  if (!ticketResponse.ok) {
     return null;
   }
 
@@ -401,13 +393,8 @@ async function onIntakeAssigned(id, fields, meta) {
     return null;
   }
 
-  const deliveryMessageResponse = await bot.chat.postMessage({
-    channel: deliveryChannel,
-    as_user: true,
-    text: await getDeliveryDMContent(fields),
-    unfurl_media: false,
-    unfurl_links: false,
-  });
+  const deliveryDMContent = await getDeliveryDMContent(fields);
+  const deliveryMessageResponse = await bot.chat.postMessage(renderDeliveryDM(fields.ticketID, deliveryDMContent, deliveryChannel));
 
   if (deliveryMessageResponse.ok) {
     console.log('onIntakeAssigned: Delivery DM sent', {
@@ -429,6 +416,27 @@ async function onIntakeAssigned(id, fields, meta) {
   };
 }
 
+async function onIntakeBulkStatuses(id, fields, meta) {
+  console.log('onIntakeBulkStatuses', { record: id, ticket: fields.ticketID });
+
+  if (!meta.intakePostChan || !meta.intakePostTs) {
+    console.error('onIntakeBulkStatuses: Missing Slack post for ticket', {
+      ticket: fields.ticketID,
+    });
+    return null;
+  }
+
+  const ticketResponse = await updateTicketPost('onIntakeBulkStatuses', fields, meta);
+  if (!ticketResponse.ok) {
+    return null;
+  }
+
+  // TODO : post a comment in the thread saying that the delivery has been claimed
+  return {
+    intakePostTs: ticketResponse.ts,
+  };
+}
+
 async function onIntakeCompleted(id, fields, meta) {
   console.log('onIntakeCompleted', { record: id, ticket: fields.ticketID });
 
@@ -440,25 +448,8 @@ async function onIntakeCompleted(id, fields, meta) {
     return null;
   }
 
-  const ticketResponse = await bot.chat.update({
-    channel: meta.intakePostChan,
-    ts: meta.intakePostTs,
-    text: await getIntakePostContent(fields),
-  });
-
-  if (ticketResponse.ok) {
-    console.log('onIntakeCompleted: Slack post updated', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-    });
-  } else {
-    console.error('onIntakeCompleted: Error updating Slack post', {
-      channel: meta.intakePostChan,
-      timestamp: meta.intakePostTs,
-      ticket: fields.ticketID,
-      response: ticketResponse,
-    });
+  const ticketResponse = await updateTicketPost('onIntakeCompleted', fields, meta);
+  if (!ticketResponse.ok) {
     return null;
   }
 
@@ -631,19 +622,18 @@ module.exports = {
   ).pubsub.schedule('every 2 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
       [null]: [onNewInbound],
-      [INBOUND_STATUSES.intakeNeeded]: [onIntakeOther],
-      [INBOUND_STATUSES.inProgress]: [onIntakeOther],
-      [INBOUND_STATUSES.intakeComplete]: [onIntakeOther],
-      // TODO get rid of this
-      [INBOUND_STATUSES.noPickup]: [onIntakeOther],
-      [INBOUND_STATUSES.duplicate]: [onIntakeOther],
-      [INBOUND_STATUSES.outsideBedStuy]: [onIntakeOther],
-      [INBOUND_STATUSES.callBack]: [onIntakeOther],
-      [INBOUND_STATUSES.question]: [onIntakeOther],
-      [INBOUND_STATUSES.thankYou]: [onIntakeOther],
-      [INBOUND_STATUSES.spanishIntakeNeeded]: [onIntakeOther],
-      [INBOUND_STATUSES.noNeed]: [onIntakeOther],
-      [INBOUND_STATUSES.phoneTag]: [onIntakeOther],
+      [INBOUND_STATUSES.intakeNeeded]: [],
+      [INBOUND_STATUSES.inProgress]: [],
+      [INBOUND_STATUSES.intakeComplete]: [],
+      [INBOUND_STATUSES.duplicate]: [],
+      [INBOUND_STATUSES.outsideBedStuy]: [],
+      [INBOUND_STATUSES.callBack]: [],
+      [INBOUND_STATUSES.question]: [],
+      [INBOUND_STATUSES.thankYou]: [],
+      [INBOUND_STATUSES.spanishIntakeNeeded]: [],
+      [INBOUND_STATUSES.noNeed]: [],
+      [INBOUND_STATUSES.phoneTag]: [],
+      [INBOUND_STATUSES.outOfService]: [],
     };
 
     return await pollTable(INBOUND_TABLE, STATUS_TO_CALLBACKS, true);
@@ -653,9 +643,12 @@ module.exports = {
     const STATUS_TO_CALLBACKS = {
       'Seeking Volunteer': [onIntakeReady],
       'Assigned / In Progress': [onIntakeAssigned],
+      'Bulk Delivery Scheduled': [onIntakeBulkStatuses],
+      'Bulk Delivery Confirmed': [onIntakeBulkStatuses],
       'Complete': [onIntakeCompleted],
       'Not Bed-Stuy': [],
-      'Assistance no longer required': [],
+      'Assistance No Longer Required': [],
+      'Cannot Reach / Out of Service': [],
     };
 
     return await pollTable(INTAKE_TABLE, STATUS_TO_CALLBACKS);

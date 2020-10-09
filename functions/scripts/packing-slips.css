@@ -1,0 +1,20 @@
+table {
+    width: 100%;
+}
+
+th {
+    text-align: left;
+}
+
+th, td {
+    font-size: 16pt;
+    margin: auto;
+}
+
+tr {
+    border-bottom: 1px solid black;
+}
+
+tr:last-child {
+    border-bottom: none;
+}

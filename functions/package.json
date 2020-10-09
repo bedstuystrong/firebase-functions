@@ -22,16 +22,23 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^4.7.0",
+    "@sendgrid/mail": "^7.2.1",
     "airtable": "^0.8.1",
     "busboy": "^0.3.1",
+    "easy-pdf-merge": "^0.2.2",
     "firebase-admin": "^8.6.0",
     "firebase-functions": "^3.3.0",
     "libphonenumber-js": "^1.7.48",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.19",
     "mailparser": "^2.7.7",
+    "markdown-pdf": "^10.0.0",
+    "moment": "^2.27.0",
+    "mustache": "^4.0.1",
     "promise.allsettled": "^1.0.2",
+    "showdown": "^1.9.1",
     "slack": "^11.0.2",
-    "twilio": "^3.41.1"
+    "twilio": "^3.41.1",
+    "yargs": "^15.4.1"
   },
   "devDependencies": {
     "@google-cloud/pubsub": "^1.7.0",
