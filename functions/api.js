@@ -17,14 +17,16 @@ const acceptableFields = ['ticketID', 'status', 'recordID', 'requestName', 'near
 module.exports = {
 
   findTicketsByPhoneNumber: functions.https.onRequest(async (req, res) => {
-    if (IS_PROD) {
-      res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com');
-    } else {
-      res.set('Access-Control-Allow-Origin', 'https://flex.twilio.com http://localhost:3000');
+
+    const allowedOrigins = ['https://flex.twilio.com'];
+    if (!IS_PROD) {
+      allowedOrigins.push('http://localhost:3000');
     }
 
     if (!req.headers.origin) {
       return res.status(401).send('Unauthorized');
+    } else if (allowedOrigins.includes(req.headers.origin)) {
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
     }
 
     if (!req.query.phoneNumber) {
@@ -45,7 +47,7 @@ module.exports = {
       });
     });
 
-    res.json(cleanTickets);
+    return res.json(cleanTickets);
   }),
 
 };
