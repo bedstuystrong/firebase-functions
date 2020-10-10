@@ -2,7 +2,6 @@ const functions = require('firebase-functions');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const _ = require('lodash');
 
-
 const {
   middleware,
   createEmptyMessageResponse,
@@ -102,4 +101,3 @@ module.exports = {
   }),
 
 };
-
