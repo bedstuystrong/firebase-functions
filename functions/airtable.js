@@ -15,6 +15,7 @@ const {
   META_STORE_KEYS,
   REIMBURSEMENT_SCHEMA,
   VOLUNTEER_SCHEMA,
+  FINANCE_TRANSACTIONS_SCHEMA,
   denormalize,
   normalize,
 } = require('./schema');
@@ -38,6 +39,8 @@ const BULK_ORDER_TABLE = functions.config().airtable.bulk_order_table;
 const BULK_DELIVERY_ROUTES_TABLE = functions.config().airtable
   .bulk_delivery_routes_table;
 const ITEM_DIRECTORY_TABLE = functions.config().airtable.item_directory_table;
+
+const FINANCE_TRANSACTIONS_TABLE = functions.config().airtable.finance_transactions_table;
 
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
@@ -611,6 +614,32 @@ async function storeMeta(key, data) {
   );
 }
 
+/* FINANCE */
+
+async function createFinanceTransaction({ direction, platform, amount, name, note, accountHolder, date }) {
+  const financeBase = airtable.base(functions.config().airtable.finance_base_id);
+
+  const directionID = {
+    In: 'recHqZivpo6j4T6On',
+    Out: 'reckW3l4mK8BCEBsd',
+  }[direction];
+
+  const fields = denormalize({
+    direction: [directionID],
+    platform: platform,
+    amount: amount,
+    name: name,
+    notes: note,
+    accountHolder: accountHolder,
+    date: date,
+  }, FINANCE_TRANSACTIONS_SCHEMA);
+
+  return financeBase(FINANCE_TRANSACTIONS_TABLE).create(
+    [{ fields }],
+    { typecast: true }
+  );
+}
+
 /* EXPORT */
 
 module.exports = {
@@ -650,4 +679,5 @@ module.exports = {
   storeMeta: storeMeta,
   updateRecord: updateRecord,
   ReconciledOrder: ReconciledOrder,
+  createFinanceTransaction: createFinanceTransaction,
 };
