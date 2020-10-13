@@ -20,7 +20,7 @@ module.exports = {
 
     let pathname = req.originalUrl;
     if (!process.env.FUNCTIONS_EMULATOR) {
-      pathname = process.env.FUNCTION_NAME + pathname.slice(1);
+      pathname = process.env.K_SERVICE + pathname.slice(1);
     }
 
     let url = URL.format({
