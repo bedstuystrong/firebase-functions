@@ -4,7 +4,7 @@ const { simpleParser } = require('mailparser');
 const sendgridMail = require('@sendgrid/mail');
 const Busboy = require('busboy');
 const pick = require('lodash/pick');
-const findKey = require('lodash/pick');
+const findKey = require('lodash/findKey');
 const { flow, get, map, first } = require('lodash/fp');
 
 const { createFinanceTransaction } = require('./airtable');
