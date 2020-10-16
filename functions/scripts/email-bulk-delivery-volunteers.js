@@ -162,5 +162,10 @@ async function main() {
 main().then(
   () => console.log('done')
 ).catch(
-  (e) => console.error(e)
+  (e) => {
+    console.error(e);
+    if (e.response && e.response.body && e.response.body.errors) {
+      console.error(e.response.body.errors);
+    }
+  }
 );

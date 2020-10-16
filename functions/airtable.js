@@ -298,6 +298,10 @@ async function getBulkOrder(records) {
       failedToLookup.push(item);
       return 0;
     }
+    if (!_.has(itemsByHouseholdSize[item], householdSize)) {
+      failedToLookup.push([item, householdSize]);
+      return 0;
+    }
     return itemsByHouseholdSize[item][householdSize];
   };
 
@@ -318,12 +322,12 @@ async function getBulkOrder(records) {
   );
 
   if (failedToLookup.length !== 0) {
-    // throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
     console.error(
       `Failed to get item by household size for: ${_.join(
         _.uniq(failedToLookup)
       )}`
     );
+    throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
   }
 
   return itemToNumRequested;

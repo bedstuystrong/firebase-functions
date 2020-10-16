@@ -133,6 +133,7 @@ const padOrder = (itemToNumRequested, bufferRatio) => {
   return _.map(
     itemToNumRequested,
     ([item, numRequested]) => {
+      console.log({ item, numRequested });
       return [item, padOrderSize(numRequested)];
     },
   );

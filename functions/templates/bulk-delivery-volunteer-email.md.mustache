@@ -8,33 +8,34 @@ listed your tickets in delivery order: {{ticketIDs}}**
 **Please arrive at Brooklyn Packers this Saturday, {{deliveryDateString}} at
 {{arrivalTime}} with your custom items already purchased.**
 
-Check out the instructions below. If any issues come up day-of, contact one of
-this week's Dispatchers: Rebecca at {{warehouseCoordinatorPhone1}} or Olivia at
-{{warehouseCoordinatorPhone2}}.
+Check out the instructions below. If any issues come up day-of, contact this
+week's Dispatcher: Annika at {{warehouseCoordinatorPhone1}}.
 
 ### Saturday Volunteer Instructions
 
 - [ ] **Get ready.** Please bring a pen or marker to the store for labeling
       bags. We also recommend printing this if you can—it helps to mark off
       tasks as they are completed.
-- [ ] **Go shopping for custom items.** See the shopping list below for what to
-      purchase. Sort the items into bags by household, and label each bag with
-      the corresponding ticket ID. (They can all be purchased on one receipt).
-      You don't need to buy Warehouse Specialty Items, they're already at the
-      warehouse.
+- [ ] **Go shopping for custom items.** See the Custom Item Shopping List below
+      for what to purchase. Sort the items into bags by household, and label
+      each bag with the corresponding ticket ID. (They can all be purchased on
+      one receipt).
 - [ ] **Come to the Brooklyn Packers warehouse for pre-packed groceries at
       {{arrivalTime}}:** [221 Glenmore Ave, Gate 3, Brooklyn, NY
       11207]({{{warehouseMapsUrl}}})
       - [ ] Find a spot to park (please do not park in front of the main driveway).
-      - [ ] Come to the warehouse and let us know you've arrived; we'll let you know
-            when your items are ready.
+      - [ ] Come to the warehouse and let us know you've arrived; the on-site
+            coordinator will give additional information and answer any questions
+            you might have.
+      - [ ] Hold tight - we'll let you know when your items are ready.
 - [ ] **While you're waiting,** call the recipients of each ticket to confirm
       that someone will be home to accept the delivery. **If you can't reach
       them,** let the dispatcher know and proceed with delivery. **If you reach
       them but they won't be home,** let the dispatcher know and we will use
       their groceries for someone else and deliver to them another time.
 - [ ] **When your items are ready,** pull up closer and we'll bring the pallet
-      to your car. You'll be given the following for each ticket:
+      to your car. You'll be given the following for each ticket (these are
+      provided at the warehouse and do not need to be purchased):
       - [ ] Pre-packed groceries (may be multiple bags or boxes per household)
       - [ ] Cleaning supplies
       - [ ] Perishables bag
@@ -44,7 +45,9 @@ this week's Dispatchers: Rebecca at {{warehouseCoordinatorPhone1}} or Olivia at
       number/name.**
 - [ ] **Load up your car.** We recommend arranging them by route, so the first
       stop is the most accessible.
-- [ ] **Make your deliveries and check off each one as you complete it.**
+- [ ] **Make your deliveries and check off each one as you complete it.** If a
+      neighbor gives you a donation, please accept it with gratitude! You can
+      enter the donation amount in the delivery completion form.
 - [ ] **When you're done, fill out the [Delivery Completion
       Form](https://airtable.com/shrvHf4k5lRo0I8F4).** Please include:
       - [ ] The total amount you spent
@@ -56,7 +59,7 @@ Thank you!
 
 ---
 {{#shoppingList}}
-### Shopping List
+### Custom Item Shopping List
 
 {{#noRouteSection}}
 #### No Route Number
@@ -91,8 +94,9 @@ Thank you!
 
 **Vulnerabilities**: {{vulnerabilities}}<br/>
 **Household Size**: {{householdSize}}<br/>
+**Language**: {{language}}<br/>
 
-**Grocery List**: {{groceryList}}<br/>
+**Pre-packed Groceries**: {{groceryList}}<br/>
 **Custom Shopping Items**: {{otherItems}}<br/>
 **Warehouse Specialty Items**: {{warehouseSpecialtyItems}}<br/>
 {{#deliveryNotes}}**Notes for Delivery**: {{.}}<br/>{{/deliveryNotes}}

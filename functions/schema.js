@@ -93,6 +93,7 @@ const ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA = {
   6: '6 Person(s)',
   7: '7 Person(s)',
   8: '8 Person(s)',
+  9: '9 Person(s)',
 };
 
 const BULK_ORDER_SCHEMA = {
