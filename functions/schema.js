@@ -52,6 +52,7 @@ const INTAKE_SCHEMA = {
 };
 
 const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];
+const NEEDS_VOLUNTEER_STATUSES = ['Seeking Volunteer', 'Seeking Other Goods'];
 
 const REIMBURSEMENT_SCHEMA = {
   status: STATUS,
@@ -174,6 +175,7 @@ const denormalize = (object, schema) => {
 module.exports = {
   BULK_DELIVERY_ROUTES_SCHEMA,
   BULK_DELIVERY_STATUSES,
+  NEEDS_VOLUNTEER_STATUSES,
   BULK_ORDER_SCHEMA,
   INBOUND_SCHEMA,
   INBOUND_STATUSES,
