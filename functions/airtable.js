@@ -16,6 +16,7 @@ const {
   REIMBURSEMENT_SCHEMA,
   VOLUNTEER_SCHEMA,
   FINANCE_TRANSACTIONS_SCHEMA,
+  PHONE_NUMBERS_SCHEMA,
   denormalize,
   normalize,
 } = require('./schema');
@@ -39,6 +40,7 @@ const BULK_ORDER_TABLE = functions.config().airtable.bulk_order_table;
 const BULK_DELIVERY_ROUTES_TABLE = functions.config().airtable
   .bulk_delivery_routes_table;
 const ITEM_DIRECTORY_TABLE = functions.config().airtable.item_directory_table;
+const PHONE_NUMBERS_TABLE = functions.config().airtable.phone_numbers_table;
 
 const FINANCE_TRANSACTIONS_TABLE = functions.config().airtable.finance_transactions_table;
 
@@ -50,6 +52,7 @@ const TABLE_SCHEMAS = {
   [ITEMS_BY_HOUSEHOLD_SIZE_TABLE]: ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA,
   [BULK_ORDER_TABLE]: BULK_ORDER_SCHEMA,
   [BULK_DELIVERY_ROUTES_TABLE]: BULK_DELIVERY_ROUTES_SCHEMA,
+  [PHONE_NUMBERS_TABLE]: PHONE_NUMBERS_SCHEMA,
 };
 
 /* GENERAL */
@@ -653,6 +656,7 @@ module.exports = {
   META_TABLE: META_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
+  PHONE_NUMBERS_TABLE: PHONE_NUMBERS_TABLE,
   createMessage: createMessage,
   createRecord: createRecord,
   createVoicemail: createVoicemail,

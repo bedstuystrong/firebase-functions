@@ -149,6 +149,14 @@ const FINANCE_TRANSACTIONS_SCHEMA = {
   accountHolder: 'Whose account?',
 };
 
+const PHONE_NUMBERS_SCHEMA = {
+  phoneNumber: 'Phone Number',
+  phoneNumberE164: 'Phone Number (E.164)',
+  type: 'Type',
+  tags: 'Tags',
+  notes: 'Notes',
+};
+
 const normalize = (object, schema) => {
   const invertedSchema = _.invert(schema);
   const normalized = _.mapKeys(object, (_value, key) => (invertedSchema[key] || key));
@@ -187,6 +195,7 @@ module.exports = {
   STATUS,
   VOLUNTEER_SCHEMA,
   FINANCE_TRANSACTIONS_SCHEMA,
+  PHONE_NUMBERS_SCHEMA,
   denormalize,
   normalize,
 };
