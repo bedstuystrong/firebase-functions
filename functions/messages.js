@@ -448,7 +448,7 @@ async function getTicketSummaryBlocks(
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `If you would like to claim one of these deliveries, please comment on the ticket thread by following the Ticket ID link, or reach out in <#${CHANNEL_IDS.delivery_volunteers}>`
+        text: `If you would like to claim one of these deliveries please reach out in <#${CHANNEL_IDS.delivery_volunteers}>`
       }
     }
   );
