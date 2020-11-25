@@ -49,6 +49,7 @@ const INTAKE_SCHEMA = {
   deliveryVolunteerRecordID: 'Delivery Volunteer Record ID',
   recordID: 'record ID',
   dateCompleted: 'Completion_Date',
+  canMeetOutside: 'Can meet outside',
 };
 
 const BULK_DELIVERY_STATUSES = ['Bulk Delivery Scheduled', 'Bulk Delivery Confirmed'];

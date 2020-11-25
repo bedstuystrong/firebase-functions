@@ -87,9 +87,9 @@ async function getIntakePostDetails(fields) {
     : _.join(fields.foodOptions, ', ') + '.';
 
   let content = `
-*Need*: ${fields.category}
 *Household Size*: ${fields.householdSize || ':question:'}
 *Language*: ${fields.language}
+*Can meet outside?*: ${fields.canMeetOutside}
 
 *Description*: ${fields.description}
 *Requested*: ${itemsDesc}\n`;
