@@ -1,11 +1,31 @@
 #!/usr/bin/env node
 
+const USE_EXCLUDES = false;
+
+const TARGETS = {
+  tickets: {
+    key: 'tickets',
+    get: async () => await getPhoneNumbers(INTAKE_TABLE, { Status: 'Complete', Neighborhood: 'SE' }),
+  },
+  volunteers: {
+    key: 'volunteers',
+    get: async () => await getPhoneNumbers(VOLUNTEER_FORM_TABLE),
+  },
+};
+const EXCLUDE_GROUPS = {
+  moved: 'moved away',
+  no_voting: 'no voting messages',
+  already_voted: 'already voted / has voting plan',
+};
+const DO_NOT_CONTACT = 'do not contact';
+
 const functions = require('firebase-functions');
 const _ = require('lodash');
 const prompts = require('prompts');
 const ora = require('ora');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const createTwilioClient = require('twilio');
+const splitter = require('split-sms');
 
 const {
   getAllRecords,
@@ -26,8 +46,10 @@ function sleep(ms) {
 }
 
 const lookupPhoneType = async (phoneNumber) => {
+  console.log('lookupPhoneType', phoneNumber)
   try {
     const response = await twilio.lookups.v1.phoneNumbers(phoneNumber).fetch({ type: 'carrier' });
+    await sleep(100);
     if (response.carrier) {
       return response.carrier.type;
     } else {
@@ -40,6 +62,7 @@ const lookupPhoneType = async (phoneNumber) => {
 };
 
 const extractNumber = ([, fields, ]) => {
+  if (fields.neighborhood !== 'SE') console.log(fields.neighborhood)
   const phoneNumber = fields.phoneNumber;
   if (!phoneNumber) return null;
   const parsed = parsePhoneNumberFromString(phoneNumber.split('/')[0], 'US');
@@ -48,10 +71,10 @@ const extractNumber = ([, fields, ]) => {
 };
 
 const getPhoneNumbers = async (table, filter = {}) => {
-  console.log({filter})
+  const clauses = _.entries(filter).map(([key, value]) => `{${key}} = "${value}"`);
   const records = await getAllRecords(table, {
-    fields: ['Phone Number'],
-    filterByFormula: _.entries(filter).map(([key, value]) => `{${key}} = "${value}"`),
+    fields: ['Phone Number', ..._.keys(filter)],
+    filterByFormula: `AND(${clauses.join(', ')})`,
   });
   return _.uniq(_.compact(records.map(extractNumber)));
 };
@@ -60,82 +83,106 @@ const getPhoneNumberMeta = async () => {
   return await getAllRecords(PHONE_NUMBERS_TABLE);
 };
 
-const TARGETS = {
-  tickets: {
-    key: 'tickets',
-    get: async () => await getPhoneNumbers(INTAKE_TABLE, { Status: 'Complete' }),
-  },
-  volunteers: {
-    key: 'volunteers',
-    get: async () => await getPhoneNumbers(VOLUNTEER_FORM_TABLE),
-  },
-}
-const EXCLUDE_GROUPS = {
-  moved: 'moved away',
-  no_voting: 'no voting messages',
-  already_voted: 'already voted / has voting plan',
+const createBindings = numbers => numbers.map((number) => JSON.stringify({
+  binding_type: 'sms',
+  address: number,
+}));
+
+const rejectByTag = tag => meta => (meta.tags && meta.tags.includes(tag));
+
+const onState = (state) => {
+  if (state.aborted) throw new Error();
 };
 
+const multiselectInstructions = 'space to select, enter to submit';
+const configPrompts = [
+  {
+    type: 'multiselect',
+    name: 'targets',
+    message: 'Send to',
+    instructions: false,
+    hint: multiselectInstructions,
+    onState: onState,
+    choices: [
+      { title: 'Delivery recipients', value: TARGETS.tickets.key },
+      { title: 'Volunteers', value: TARGETS.volunteers.key },
+    ],
+    min: 1,
+  },
+  {
+    type: USE_EXCLUDES ? 'multiselect' : null,
+    name: 'excludes',
+    message: 'Exclude groups',
+    instructions: false,
+    hint: multiselectInstructions,
+    onState: onState,
+    choices: [
+      { title: 'Moved away', value: EXCLUDE_GROUPS.moved },
+      { title: 'Already voted', value: EXCLUDE_GROUPS.already_voted },
+      { title: 'No voting messages', value: EXCLUDE_GROUPS.no_voting },
+    ],
+  },
+  {
+    type: 'text',
+    name: 'body',
+    message: 'Message body',
+    onState: onState,
+    onRender(kleur) {
+      this.msg = [
+        kleur.bold().white('Message body'),
+        kleur.reset().gray('Make sure to run the message through'),
+        kleur.reset().underline().gray('https://twiliodeved.github.io/message-segment-calculator/'),
+      ].join('\n') + '\n';
+    },
+  },
+];
+
+const testPrompts = [
+  {
+    type: 'list',
+    name: 'numbers',
+    message: 'Test phone numbers',
+    initial: '',
+    separator: ',',
+    onState: onState,
+    format: (value) => value.map(v => parsePhoneNumberFromString(v, 'US').format('E.164')),
+  },
+  {
+    type: 'confirm',
+    name: 'confirm',
+    message: prev => `Send test to ${prev.join(', ')}?`,
+    initial: false,
+    onState: onState,
+  }
+];
+
 (async () => {
-  console.log('\n');
-  const multiselectInstructions = 'space to select, enter to submit';
-
-  const config = await prompts([
-    {
-      type: 'multiselect',
-      name: 'targets',
-      message: 'Send to',
-      instructions: false,
-      hint: multiselectInstructions,
-      choices: [
-        { title: 'Delivery recipients', value: TARGETS.tickets.key },
-        { title: 'Volunteers', value: TARGETS.volunteers.key },
-      ],
-      min: 1,
-    },
-    {
-      type: 'multiselect',
-      name: 'excludes',
-      message: 'Exclude groups',
-      instructions: false,
-      hint: multiselectInstructions,
-      choices: [
-        { title: 'Moved away', value: EXCLUDE_GROUPS.moved },
-        { title: 'Already voted', value: EXCLUDE_GROUPS.already_voted },
-        { title: 'No voting messages', value: EXCLUDE_GROUPS.no_voting },
-      ],
-    },
-    {
-      type: 'text',
-      name: 'body',
-      message: 'Message body',
-      onRender(kleur) {
-        this.msg = [
-          kleur.bold().white('Message body'),
-          kleur.reset().gray('Make sure to run the message through'),
-          kleur.reset().underline().gray('https://twiliodeved.github.io/message-segment-calculator/'),
-        ].join('\n') + '\n';
-      }
-    },
-  ]);
-
-  console.log({config})
-
   try {
+    console.log('\n');
 
-    const spinner = ora('Getting phone numbers').start();
+    const config = await prompts(configPrompts);
+
+    const splitBody = splitter.split(config.body);
+    if (splitBody.characterSet !== 'GSM') {
+      console.error('Message body is incompatible with GSM encoding. Please use the Message Segment Calculator: https://twiliodeved.github.io/message-segment-calculator/');
+      return process.exit(1);
+    }
+
+    console.log(`\nMessage segments: ${splitBody.parts.length}`);
+
+    let spinner = ora('Getting phone numbers').start();
 
     let allPhoneNumbers = _.intersection(...await Promise.all(
       config.targets.map((async targetKey => await TARGETS[targetKey].get()))
     ));
 
-    spinner.text = 'Updating phone numbers';
-
     const phoneNumberMeta = (await getPhoneNumberMeta()).map(([, fields,]) => fields);
+
+    spinner.text = 'Updating phone numbers';
 
     let phoneNumbers = _.compact(await Promise.all(
       allPhoneNumbers.map(async (number) => {
-        const meta = _.find(phoneNumberMeta, ['phoneNumber', number]);
+        const meta = _.find(phoneNumberMeta, ['phoneNumberE164', number]);
 
         if (meta) {
           return meta;
@@ -147,16 +194,92 @@ const EXCLUDE_GROUPS = {
               type: type,
             });
             return fields;
+          } else {
+            return null;
           }
         }
       })
     ));
 
-    phoneNumbers = _.filter(phoneNumbers, ['type', 'mobile']);
+    spinner.text = 'Filtering phone numbers';
+    
+    phoneNumbers = _.chain(phoneNumbers)
+      .filter(['type', 'mobile'])
+      .reject(rejectByTag(DO_NOT_CONTACT));
 
-    spinner.text = 'phoneNumbers.length: ' + phoneNumbers.length
+    if (config.excludes) {
+      config.excludes.forEach((exclude) => {
+        phoneNumbers.reject(rejectByTag(exclude));
+      });
+    }
 
-    spinner.text = 'haha code machine go brrr'
+    phoneNumbers = phoneNumbers.value();
+
+    spinner.succeed(`${phoneNumbers.length} phone numbers`);
+
+    let testRun = await prompts(testPrompts);
+
+    while (!testRun.confirm) {
+      testRun = await prompts(testPrompts);
+    }
+
+    spinner = ora('Sending test').start();
+
+    const testBindings = createBindings(testRun.numbers);
+
+    const testNotification = await twilio.notify.services(notifySid).notifications.create({
+      toBinding: testBindings,
+      body: config.body,
+    });
+
+    spinner.succeed('Test sent');
+
+    console.log('Test notification SID', testNotification.sid);
+
+    const confirmationPrompts = [
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: '',
+        initial: false,
+        onState: onState,
+        onRender(kleur) {
+          this.msg = [
+            kleur.bold().white(`Send the following message to ${phoneNumbers.length} phone numbers?`),
+            kleur.reset().cyan(config.body),
+          ].join('\n') + '\n';
+        },
+      }
+    ];
+    const finalConfirmation = await prompts(confirmationPrompts);
+    if (!finalConfirmation.confirm) {
+      console.error('Aborting');
+      return process.exit(0);
+    }
+
+    const cancelTemplate = n => `Sending mesaage, you have ${n} seconds to cancel`;
+    spinner = ora(cancelTemplate(5)).start();
+    await sleep(1000);
+    spinner.text = cancelTemplate(4);
+    await sleep(1000);
+    spinner.text = cancelTemplate(3);
+    await sleep(1000);
+    spinner.text = cancelTemplate(2);
+    await sleep(1000);
+    spinner.text = cancelTemplate(1);
+    await sleep(1000);
+    spinner.text = 'Sending message';
+
+    const bindings = createBindings(phoneNumbers.map(meta => meta.phoneNumberE164));
+
+    const notification = await twilio.notify.services(notifySid).notifications.create({
+      toBinding: bindings,
+      body: config.body,
+    });
+
+    spinner.succeed(`Message sent to ${phoneNumbers.length} phone numbers`);
+
+    console.log('Notification SID', notification.sid);
 
     return process.exit(0);
   } catch (e) {

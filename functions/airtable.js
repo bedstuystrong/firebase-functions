@@ -80,8 +80,8 @@ function normalizeRecords(table) {
   return normalizeRecord;
 }
 
-async function getAllRecords(table) {
-  const records = await base(table).select().all();
+async function getAllRecords(table, options) {
+  const records = await base(table).select(options).all();
   return records.map(normalizeRecords(table));
 }
 
