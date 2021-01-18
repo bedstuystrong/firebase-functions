@@ -106,7 +106,7 @@ async function pollTable(table, statusToCallbacks, includeNullStatus = false) {
 
 /* INBOUND */
 
-async function onNewInbound(id, fields, ) {
+async function onNewInbound(id, fields,) {
   console.log('onNewInbound', { id: id, phoneNumber: fields.phoneNumber });
 
   const UNKNOWN_CALLER_NUMBER = '696687';
@@ -616,7 +616,7 @@ module.exports = {
   inbounds: functions.runWith(
     // Set to the maximum timeout and memory usage
     {
-      timeoutSeconds: 90,
+      timeoutSeconds: 110,
       memory: '1GB'
     }
   ).pubsub.schedule('every 2 minutes').onRun(async () => {
@@ -638,8 +638,13 @@ module.exports = {
 
     return await pollTable(INBOUND_TABLE, STATUS_TO_CALLBACKS, true);
   }),
-  // Runs every minute
-  intakes: functions.pubsub.schedule('every 1 minutes').onRun(async () => {
+  intakes: functions.runWith(
+    // Set to the maximum timeout and memory usage
+    {
+      timeoutSeconds: 110,
+      memory: '1GB'
+    }
+  ).pubsub.schedule('every 2 minutes').onRun(async () => {
     const STATUS_TO_CALLBACKS = {
       'Seeking Volunteer': [onIntakeReady],
       'Assigned / In Progress': [onIntakeAssigned],
