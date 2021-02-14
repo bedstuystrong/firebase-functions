@@ -100,4 +100,30 @@ module.exports = {
     res.status(200).send(`You'll get a call at ${volunteerFields.phoneNumber} from Bed-Stuy Strong shortly connecting you to ${recordFields.phoneNumber}`);
   }),
 
+  // NOTE that this endpoint is currently being used for vax support callbacks
+  callback_basic: functions.https.onRequest(async (req, res) => {
+    const volunteerPhoneNumberRaw = req.query.volunteerPhoneNumber;
+    const neighborPhoneNumberRaw = req.query.neighborPhoneNumber;
+
+    if (!(volunteerPhoneNumberRaw && neighborPhoneNumberRaw)) {
+      res.status(400).send('Missing required query params');
+      return;
+    }
+
+    const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerPhoneNumberRaw, 'US').format('E.164');
+    const neighborPhoneNumber = parsePhoneNumberFromString(neighborPhoneNumberRaw, 'US').format('E.164');
+
+    if (!neighborPhoneNumber || !volunteerPhoneNumber) {
+      console.error('Missing a phone number', {
+        neighborPhoneNumber,
+        volunteerPhoneNumber,
+      });
+      res.status(500).send('Missing a phone number on one or more records');
+      return;
+    }
+
+    await requestConnectCall(volunteerPhoneNumber, neighborPhoneNumber);
+
+    res.status(200).send(`You'll get a call at ${volunteerPhoneNumber} from Bed-Stuy Strong shortly connecting you to ${neighborPhoneNumber}`);
+  }),
 };
