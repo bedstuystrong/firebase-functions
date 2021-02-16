@@ -25,6 +25,7 @@
     "@sendgrid/mail": "^7.2.1",
     "airtable": "^0.8.1",
     "busboy": "^0.3.1",
+    "csv-parser": "^3.0.0",
     "easy-pdf-merge": "^0.2.2",
     "firebase-admin": "^8.6.0",
     "firebase-functions": "^3.3.0",
@@ -39,7 +40,7 @@
     "slack": "^11.0.2",
     "split-sms": "^0.1.7",
     "twilio": "^3.41.1",
-    "yargs": "^15.4.1"
+    "yargs": "^16.2.0"
   },
   "devDependencies": {
     "@google-cloud/pubsub": "^1.7.0",

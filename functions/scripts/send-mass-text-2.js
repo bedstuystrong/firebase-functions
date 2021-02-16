@@ -19,7 +19,12 @@ const EXCLUDE_GROUPS = {
 };
 const DO_NOT_CONTACT = 'do not contact';
 
+const fs = require('fs');
+const path = require('path');
 const functions = require('firebase-functions');
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
+const csv = require('csv-parser');
 const _ = require('lodash');
 const prompts = require('prompts');
 const ora = require('ora');
@@ -41,8 +46,23 @@ const notifySid = functions.config().twilio.mass_messaging.notify_sid;
 
 const twilio = createTwilioClient(accountSid, authToken);
 
+const argv = yargs(hideBin(process.argv)).argv;
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function readCSV(filename) {
+  return new Promise((resolve, reject) => {
+    let rows = [];
+    fs.createReadStream(filename)
+      .pipe(csv(['phoneNumber']))
+      .on('data', (data) => {
+        rows.push(data);
+      })
+      .on('end', () => resolve(rows))
+      .on('error', reject);
+  });
 }
 
 const lookupPhoneType = async (phoneNumber) => {
@@ -160,6 +180,35 @@ const testPrompts = [
   try {
     console.log('\n');
 
+    let allPhoneNumbers;
+
+    if (argv.contacts) {
+      allPhoneNumbers = _.chain(await readCSV(argv.contacts))
+        .map((value) => {
+          const phoneNumber = parsePhoneNumberFromString(value.phoneNumber, 'US');
+          if (phoneNumber) {
+            return phoneNumber.format('E.164');
+          } else {
+            return null;
+          }
+        })
+        .compact()
+        .value();
+      
+      configPrompts[0].type = null;
+
+      configPrompts.unshift({
+        name: 'contacts',
+        type: 'confirm',
+        initial: true,
+        message: 'Using contact list from file',
+        onRender(kleur) {
+          this.msg = kleur.reset('Using contact list from file ') + kleur.underline(path.basename(argv.contacts))
+            + kleur.reset().cyan(`\n${allPhoneNumbers.length} phone numbers`) + '\n';
+        },
+      });
+    }
+
     const config = await prompts(configPrompts);
 
     const splitBody = splitter.split(config.body);
@@ -172,9 +221,11 @@ const testPrompts = [
 
     let spinner = ora('Getting phone numbers').start();
 
-    let allPhoneNumbers = _.intersection(...await Promise.all(
-      config.targets.map((async targetKey => await TARGETS[targetKey].get()))
-    ));
+    if (!allPhoneNumbers) {
+      allPhoneNumbers = _.intersection(...await Promise.all(
+        config.targets.map((async targetKey => await TARGETS[targetKey].get()))
+      ));
+    }
 
     const phoneNumberMeta = (await getPhoneNumberMeta()).map(([, fields,]) => fields);
 
@@ -257,7 +308,7 @@ const testPrompts = [
       return process.exit(0);
     }
 
-    const cancelTemplate = n => `Sending mesaage, you have ${n} seconds to cancel`;
+    const cancelTemplate = n => `Sending message, you have ${n} seconds to cancel`;
     spinner = ora(cancelTemplate(5)).start();
     await sleep(1000);
     spinner.text = cancelTemplate(4);
