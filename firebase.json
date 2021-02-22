@@ -32,11 +32,6 @@
         "source": "/political-positions",
         "destination": "https://docs.google.com/document/d/1PlOmJWFEDyH3ppUrV_hJYM5Vd6O8cFJeDfHEDvdDjf4/edit",
         "type": 302
-      },
-      {
-        "source": "/volunteer",
-        "destination": "/membership",
-        "type": 302
       }
     ]
   },
