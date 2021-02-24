@@ -1,74 +1,86 @@
 Hi {{firstName}}!
 
-Thank you for volunteering to deliver groceries to our neighbors with Bed-Stuy
-Strong!
+Thank you again for volunteering to help our neighbors.
 
-We've assigned you Route {{routeName}} with the following tickets: {{ticketIDs}}
+**We've assigned you Route {{routeName}} with the following tickets. We've
+listed your tickets in delivery order: {{ticketIDs}}**
 
-### Overview
+**Please arrive at Brooklyn Packers this Saturday, {{deliveryDateString}} at
+{{arrivalTime}} with your custom items already purchased.**
 
-This coming Saturday, please come to the Brooklyn Packers warehouse at **[221
-Glenmore Ave, Gate 4]({{{warehouseMapsUrl}}}) at {{arrivalTime}}** to pick up
-your deliveries. **Please do not park in front of the main driveway.** Find a
-spot to park, and then walk up to the warehouse to let Hanna and Francesca know
-that you've arrived. When your deliveries are all ready, you'll pull up closer
-and we'll bring the pallet with your deliveries to your car.
+Check out the instructions below. If any issues come up day-of, contact this
+week's Dispatcher: Annika at {{warehouseCoordinatorPhone1}}.
 
-If you are shopping for your own tickets, please do your shopping first (you'll
-also get an email about shopping), and get the items labeled and in your car,
-before coming to the warehouse.
+### Saturday Volunteer Instructions
 
-If you requested a separate shopping volunteer, please arrange to meet them at
-the store to pick up your additional items, with enough time to get to the
-warehouse by {{arrivalTime}}.
-
-The neighbors you're delivering to have confirmed their availability for
-1:30-4pm, but you'll call each of them before you leave the warehouse to get any
-last minute delivery details.
-
-You'll load your car with boxes/bags for the above ticket IDs, and then deliver
-them to the addresses below. Since there are perishables in the deliveries,
-you'll need to deliver them immediately after pickup. You may want to plan your
-route to Brooklyn Packers and then to the delivery locations in advance.
-
-If possible, we recommend printing this email out so you can mark tickets done
-as you complete them. Please also fill out the [Completion
-Form](https://airtable.com/shrvHf4k5lRo0I8F4) when you finish your deliveries.
-If any issues come up during your deliveries, or you are unable to deliver any
-of the boxes (because someone isn't home) contact Francesca at
-{{warehouseCoordinatorPhone}}. We'll help you redistribute the food to the
-community in another way.
-
-### Delivery Day Checklist
-
-- [ ] Shop for custom items (instructions sent separately) or meet your shopping
-      teammate at an agreed-upon time and place.
-
-- [ ] Check in with Hanna or Francesca at the warehouse when you arrive. They'll
-      let you know when your main food boxes and additional items are ready.
-      
-While you're waiting:
-
-- [ ] Call the recipients of each ticket to confirm someone will be home to
-      accept the delivery. (If they're not, please let Francesca or Hanna know --
-      we'll use their items for someone else, and deliver to them another time.)
-- [ ] At the warehouse, you'll collect the following for each household (we'll
-      give you more specific instructions day of):
-    - [ ] Main food boxes (may be multiple per household)
-    - [ ] Cleaning supplies
-    - [ ] Custom items
-    - [ ] Water
-- [ ] All boxes/bags will be labeled with ticket IDs. Please confirm all the
-      ticket IDs match, and have your route number/name on them.
-- [ ] Put everything in your car
-- [ ] Check off each delivery below as you complete it
-- [ ] Fill out the [delivery completion
-      form](https://airtable.com/shrvHf4k5lRo0I8F4) when you're done. If you
-      didn't do any shopping, specify $0 Total Cost.
+- [ ] **Get ready.** Please bring a pen or marker to the store for labeling
+      bags. We also recommend printing this if you can—it helps to mark off
+      tasks as they are completed.
+- [ ] **Go shopping for custom items.** See the Custom Item Shopping List below
+      for what to purchase. Sort the items into bags by household, and label
+      each bag with the corresponding ticket ID. (They can all be purchased on
+      one receipt).
+- [ ] **Come to the Brooklyn Packers warehouse for pre-packed groceries at
+      {{arrivalTime}}:** [221 Glenmore Ave, Gate 3, Brooklyn, NY
+      11207]({{{warehouseMapsUrl}}})
+      - [ ] Find a spot to park (please do not park in front of the main driveway).
+      - [ ] Come to the warehouse and let us know you've arrived; the on-site
+            coordinator will give additional information and answer any questions
+            you might have.
+      - [ ] Hold tight - we'll let you know when your items are ready.
+- [ ] **While you're waiting,** call the recipients of each ticket to confirm
+      that someone will be home to accept the delivery. **If you can't reach
+      them,** let the dispatcher know and proceed with delivery. **If you reach
+      them but they won't be home,** let the dispatcher know and we will use
+      their groceries for someone else and deliver to them another time.
+- [ ] **When your items are ready,** pull up closer and we'll bring the pallet
+      to your car. You'll be given the following for each ticket (these are
+      provided at the warehouse and do not need to be purchased):
+      - [ ] Pre-packed groceries (may be multiple bags or boxes per household)
+      - [ ] Cleaning supplies
+      - [ ] Perishables bag
+      - [ ] Warehouse Specialty Items (e.g. Art kits, books, etc.)
+      - [ ] Water
+- [ ] **Please confirm that the ticket IDs on every box and bag match your route
+      number/name.**
+- [ ] **Load up your car.** We recommend arranging them by route, so the first
+      stop is the most accessible.
+- [ ] **Make your deliveries and check off each one as you complete it.** If a
+      neighbor gives you a donation, please accept it with gratitude! You can
+      enter the donation amount in the delivery completion form.
+- [ ] **When you're done, fill out the [Delivery Completion
+      Form](https://airtable.com/shrvHf4k5lRo0I8F4).** Please include:
+      - [ ] The total amount you spent
+      - [ ] Images of your receipt(s)
+      - [ ] A note that your reimbursement form is for **custom items shopping for
+            bulk purchasing households on {{deliveryDateString}}**
 
 Thank you!
 
-----
+---
+{{#shoppingList}}
+### Custom Item Shopping List
+
+{{#noRouteSection}}
+#### No Route Number
+
+{{#items}}
+- [ ] {{{item}}}
+{{/items}}
+
+{{/noRouteSection}}
+
+{{#tickets}}
+**Ticket {{ticketID}}** ({{conditions}})
+
+{{#items}}
+- [ ] {{quantity}} {{item}}
+{{/items}}
+
+---
+{{/tickets}}
+
+{{/shoppingList}}
 ### Tickets (Route {{routeName}})
 {{#tickets}}
 
@@ -82,9 +94,11 @@ Thank you!
 
 **Vulnerabilities**: {{vulnerabilities}}<br/>
 **Household Size**: {{householdSize}}<br/>
+**Language**: {{language}}<br/>
 
-**Grocery List**: {{groceryList}}<br/>
-**Custom Items**: {{otherItems}}<br/>
+**Pre-packed Groceries**: {{groceryList}}<br/>
+**Custom Shopping Items**: {{otherItems}}<br/>
+**Warehouse Specialty Items**: {{warehouseSpecialtyItems}}<br/>
 {{#deliveryNotes}}**Notes for Delivery**: {{.}}<br/>{{/deliveryNotes}}
 
 ----

@@ -45,6 +45,7 @@ const INTAKE_SCHEMA = {
   costCategory: 'cost_category',
   foodOptions: 'Food Options',
   otherItems: 'Other Items',
+  warehouseSpecialtyItems: 'Warehouse Specialty Items',
   bulkRoute: 'Bulk Delivery Route',
   deliveryVolunteerRecordID: 'Delivery Volunteer Record ID',
   recordID: 'record ID',
@@ -95,6 +96,7 @@ const ITEMS_BY_HOUSEHOLD_SIZE_SCHEMA = {
   6: '6 Person(s)',
   7: '7 Person(s)',
   8: '8 Person(s)',
+  9: '9 Person(s)',
 };
 
 const BULK_ORDER_SCHEMA = {

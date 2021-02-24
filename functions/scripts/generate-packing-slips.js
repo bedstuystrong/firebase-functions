@@ -12,6 +12,8 @@ const {
   ReconciledOrder,
 } = require('../airtable');
 
+const generalCategories = ['Non-perishable', 'Produce'];
+
 /**
  * Render one packing slip for this order.
  * @param {ReconciledOrder} order Reconciled order
@@ -29,20 +31,24 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
   markdown += `**Delivery**: ${order.volunteer.Name}\n\n`;
   markdown += `**Sheet**: ${slipNumber + 1}/3\n\n`;
 
-  const categoryOrder = singleCategory
-    ? [singleCategory]
-    : ['Non-perishable', 'Produce', 'Last'];
+  const categorySet = singleCategory === 'General' ? generalCategories : [singleCategory];
 
   const renderTable = (groups, categories) => {
-    const columns = (categories.length === 1 && categories[0] === 'General') ? ([
-      [categories[0], _.take(groups[categories[0]], _.ceil(groups[categories[0]].length / 2))],
-      [`${categories[0]} (cont.)`, _.drop(groups[categories[0]], _.ceil(groups[categories[0]].length / 2))]
+    const categoryItems = _.sortBy(
+      _.concat(..._.map(categories, (category) => groups[category] || [])),
+      (item) => {
+        return _.toNumber(order.itemToCategory[item[0]].order);
+      }
+    );
+    const columns = (singleCategory === 'General') ? ([
+      [singleCategory, _.take(categoryItems, _.ceil(categoryItems.length / 2))],
+      [`${singleCategory} (cont.)`, _.drop(categoryItems, _.ceil(categoryItems.length / 2))]
     ]) : (_.map(categories, (category) => {
       return [category, groups[category]];
     }));
     const numRows = _.max(
-      _.map(columns, ([category, items]) => {
-        return _.includes(categories, category) && items ? items.length : 0;
+      _.map(columns, ([, items]) => {
+        return items ? items.length : 0;
       })
     );
     markdown += '| ';
@@ -66,38 +72,43 @@ function renderPackingSlip(order, singleCategory, slipNumber) {
     }
     markdown += '\n';
   };
-  renderTable(itemGroups, categoryOrder);
+  renderTable(itemGroups, categorySet);
 
-  if (singleCategory === 'General' && (!_.isNull(fields.otherItems) || !_.isEqual(order.provided, order.requested))) {
+  if (singleCategory === 'General' && (!_.isNull(fields.otherItems) || !_.isNull(fields.warehouseItems) || !_.isEqual(order.provided, order.requested))) {
+    /**
+     * @param {[{ item: string, quantity: number | null }]} items List of
+     * items to purchase.
+     */
+    const renderOtherTable = (title, items) => {
+      const numCols = 2;
+      const numRows = _.ceil(items.length / 2.0);
+      const itemsDescendingLength = _.sortBy(items, ({ item }) => {
+        return -item.length;
+      });
+      markdown += `| ${title} |\n| --- |`;
+      for (var row = 0; row < numRows; row++) {
+        markdown += '\n|';
+        for (var col = 0; col < numCols; col++) {
+          const i = row + col * numRows;
+          if (i >= items.length) {
+            markdown += ' &nbsp; |';
+          } else {
+            markdown += ` ${itemsDescendingLength[i].quantity || ''} ${itemsDescendingLength[i].item} |`;
+          }
+        }
+      }
+      markdown += '\n';
+    };
+
     const otherItems = order.getAdditionalItems();
     if (otherItems.length > 0) {
       markdown += '\n---\n';
-
-      /**
-       * @param {[{ item: string, quantity: number | null }]} items List of
-       * items to purchase.
-       */
-      const renderOtherTable = (items) => {
-        const numCols = 2;
-        const numRows = _.ceil(items.length / 2.0);
-        const itemsDescendingLength = _.sortBy(items, ({ item }) => {
-          return -item.length;
-        });
-        markdown += '| Other |\n| --- |';
-        for (var row = 0; row < numRows; row++) {
-          markdown += '\n|';
-          for (var col = 0; col < numCols; col++) {
-            const i = row + col * numRows;
-            if (i >= items.length) {
-              markdown += ' &nbsp; |';
-            } else {
-              markdown += ` ${itemsDescendingLength[i].quantity || ''} ${itemsDescendingLength[i].item} |`;
-            }
-          }
-        }
-        markdown += '\n';
-      };
-      renderOtherTable(otherItems);
+      renderOtherTable('Other Items', otherItems);
+    }
+    const warehouseItems = order.getWarehouseItems();
+    if (warehouseItems.length > 0) {
+      markdown += '\n---\n';
+      renderOtherTable('Warehouse Items', warehouseItems);
     }
   }
 
@@ -127,7 +138,15 @@ async function savePackingSlips(orders) {
   // Three sheets, one with Cleaning Bundle, one Fridge / Frozen, one with
   // everything else.
   const sheetCategories = ['General', 'Cleaning Bundle', 'Fridge / Frozen'];
+  const realOrderCategories = _.concat(_.slice(sheetCategories, 1), generalCategories);
   const outPaths = await Promise.all(_.flatMap(orders, (order) => {
+    const orderCategories = _.keys(order.bulkPurchasedItemsByGroup());
+    const notIncludedCategories = _.filter(orderCategories, (category) => !_.includes(realOrderCategories, category));
+    if (!_.isEmpty(notIncludedCategories)) {
+      const msg = `Some item categories are not accounted for: ${_.join(notIncludedCategories, ', ')}`;
+      console.error(msg);
+      throw new Error(msg);
+    }
     return _.map(sheetCategories, async (category, i) => {
       const markdown = renderPackingSlip(order, category, i);
       const stream = PDF.from.string(markdown);

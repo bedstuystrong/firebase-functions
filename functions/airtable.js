@@ -305,6 +305,10 @@ async function getBulkOrder(records) {
       failedToLookup.push(item);
       return 0;
     }
+    if (!_.has(itemsByHouseholdSize[item], householdSize)) {
+      failedToLookup.push([item, householdSize]);
+      return 0;
+    }
     return itemsByHouseholdSize[item][householdSize];
   };
 
@@ -325,12 +329,12 @@ async function getBulkOrder(records) {
   );
 
   if (failedToLookup.length !== 0) {
-    // throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
     console.error(
       `Failed to get item by household size for: ${_.join(
         _.uniq(failedToLookup)
       )}`
     );
+    throw Error(`Failed to get item by household size for: ${_.join(_.uniq(failedToLookup))}`);
   }
 
   return itemToNumRequested;
@@ -357,6 +361,8 @@ async function getItemToNumAvailable(deliveryDate) {
  */
 async function getAllRoutes(deliveryDate) {
   const allRoutes = await getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate });
+  // We are no longer using separate shopping volunteers!
+  /*
   const routesWithoutShopper = _.filter(allRoutes, ([, fields]) => {
     return (
       fields.shoppingVolunteer === null || fields.shoppingVolunteer.length !== 1
@@ -369,6 +375,7 @@ async function getAllRoutes(deliveryDate) {
     }));
     throw new Error(msg);
   }
+  */
   return allRoutes;
 }
 
@@ -388,12 +395,7 @@ function getTicketsForRoute([, fields]) {
  * @param {[string, Object, Object][]} allRoutes Bulk delivery route records.
  */
 async function getTicketsForRoutes(allRoutes) {
-  return _.sortBy(
-    await Promise.all(_.flatMap(allRoutes, getTicketsForRoute)),
-    ([, fields]) => {
-      return fields.ticketID;
-    }
-  );
+  return await Promise.all(_.flatMap(allRoutes, getTicketsForRoute));
 }
 
 class ReconciledOrder {
@@ -427,18 +429,9 @@ class ReconciledOrder {
   }
 
   bulkPurchasedItemsByGroup() {
-    const groups = _.groupBy(_.toPairs(this.provided), ([item]) => {
+    return _.groupBy(_.toPairs(this.provided), ([item]) => {
       return this.itemToCategory[item].category;
     });
-    const sorted = _.fromPairs(_.map(_.toPairs(groups), ([category, items]) => {
-      return [
-        category,
-        _.sortBy(items, (item) => {
-          return _.toNumber(this.itemToCategory[item[0]].order);
-        })
-      ];
-    }));
-    return sorted;
   }
 
   /**
@@ -474,6 +467,20 @@ class ReconciledOrder {
     // @ts-ignore eslint doesn't understand array structures I guess?
     return missingItems.concat(customItems);
   }
+
+  getWarehouseItems() {
+    const fields = this.intakeRecord[1];
+    const warehouseItems = fields.warehouseSpecialtyItems;
+    if (!warehouseItems) {
+      return [];
+    }
+    return _.map(
+      _.split(warehouseItems, ','),
+      (item) => {
+        return { item: _.trim(item), quantity: null };
+      }
+    );
+  }
 }
 
 /**
@@ -492,7 +499,12 @@ async function reconcileOrders(deliveryDate, allRoutes) {
     })
   );
 
-  const intakeRecords = await getTicketsForRoutes(allRoutes);
+  const intakeRecords = _.sortBy(
+    await getTicketsForRoutes(allRoutes),
+    ([, fields]) => {
+      return fields.ticketID;
+    }
+  );
 
   const itemToNumAvailable = await getItemToNumAvailable(deliveryDate);
 

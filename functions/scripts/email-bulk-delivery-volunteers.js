@@ -5,16 +5,80 @@ const moment = require('moment');
 const Mustache = require('mustache');
 const yargs = require('yargs');
 
-const { getAllRoutes, getTicketsForRoutes, getRecordsWithFilter, BULK_DELIVERY_ROUTES_TABLE } = require('../airtable');
+// eslint-disable-next-line no-unused-vars
+const { getAllRoutes, getTicketsForRoutes, getRecordsWithFilter, reconcileOrders, BULK_DELIVERY_ROUTES_TABLE, ReconciledOrder } = require('../airtable');
 const { googleMapsUrl, Email } = require('../messages');
 
-function getEmailTemplateParameters(route, tickets) {
-  const ticketParameterMaps = tickets.map((ticket) => {
+// Each week we might need custom shoppers to do some "bulk purchases" if we
+// couldn't procure everything we needed. The "no route" section lets us ask
+// every custom shopper to get some bulk items and not sort them by tickets.
+const noRouteSection = {
+  items: []
+};
+
+/**
+ * Sometimes, we have "custom items" we have on hand and don't need shoppers
+ * to purchase, but they aren't represented in the Bulk Order table.
+ * @param {{ item: string, quantity: number | null }} param0 Custom item.
+ */
+const itemNeedsCustomShopping = ({ item }) => {
+  const lowered = _.lowerCase(item);
+  return !(
+    _.endsWith(lowered, 'art kit')
+    || _.endsWith(lowered, 'art kits')
+    || lowered.match(/\d\s*books?\s/) !== null
+    || _.endsWith(lowered, 'helmet')
+    || _.endsWith(lowered, 'helmets')
+  );
+};
+
+const getShoppingListTemplateParameters = (route, orders) => {
+  const allTickets = _.map(orders, (order) => {
+    const { ticketID, vulnerability, householdSize } = order.intakeRecord[1];
+    const conditions = _.concat([`household size ${householdSize}`], vulnerability);
+    const items = _.filter(order.getAdditionalItems(), itemNeedsCustomShopping);
+    return { ticketID, conditions: _.join(conditions, ', '), items };
+  });
+  const tickets = _.filter(allTickets, ({ items }) => {
+    return items.length > 0;
+  });
+  const params = {
+    tickets
+  };
+  if (!_.isEmpty(noRouteSection.items)) {
+    params.noRouteSection = noRouteSection;
+  }
+  return params;
+};
+
+/**
+ * Construct the mustache template parameter map.
+ * @param {Object} route route fields
+ * @param {ReconciledOrder[]} orders list of orders
+ */
+function getEmailTemplateParameters(route, orders) {
+  const ticketParameterMaps = orders.map((order) => {
+    const { intakeRecord: [, ticket,] } = order;
+    const additionalItems = order.getAdditionalItems();
+    const shoppingItems = _.map(
+      additionalItems,
+      ({ item, quantity }) => {
+        return `${quantity || ''} ${item}`.trim();
+      }
+    );
+    const warehouseSpecialtyItems = _.map(
+      order.getWarehouseItems(),
+      ({ item, quantity }) => {
+        return `${quantity || ''} ${item}`.trim();
+      }
+    );
     return Object.assign({}, ticket, {
       phoneNumberNumbersOnly: _.replace(ticket.phoneNumber, /[^0-9]/g, ''),
       mapsUrl: googleMapsUrl(ticket.address),
       vulnerabilities: _.join(ticket.vulnerability, ', '),
       groceryList: _.join(ticket.foodOptions, ', '),
+      otherItems: _.join(shoppingItems, ', '),
+      warehouseSpecialtyItems: _.join(warehouseSpecialtyItems, ', '),
     });
   });
   return {
@@ -22,13 +86,15 @@ function getEmailTemplateParameters(route, tickets) {
     deliveryDateString: moment(route.deliveryDate).utc().format('MMMM Do'),
     firstName: route.deliveryVolunteerName[0].split(' ')[0],
     routeName: route.name,
-    ticketIDs: _.join(_.map(tickets, (fields) => {
+    ticketIDs: _.join(_.map(orders, ({ intakeRecord: [, fields,]}) => {
       return fields.ticketID;
     }), ', '),
     warehouseMapsUrl: googleMapsUrl('221 Glenmore Ave'),
     arrivalTime: _.trim(route.arrivalTime),
-    warehouseCoordinatorPhone: functions.config().bulk_ops_team.warehouse_coordinator.phone_number,
+    warehouseCoordinatorPhone1: functions.config().bulk_ops_team.warehouse_coordinator1.phone_number,
+    warehouseCoordinatorPhone2: functions.config().bulk_ops_team.warehouse_coordinator2.phone_number,
     tickets: ticketParameterMaps,
+    shoppingList: getShoppingListTemplateParameters(route, orders),
   };
 }
 
@@ -51,18 +117,28 @@ async function main() {
     await getRecordsWithFilter(BULK_DELIVERY_ROUTES_TABLE, { deliveryDate: argv.deliveryDate, name: argv.route })
   ) : await getAllRoutes(argv.deliveryDate);
 
+  const orders = await reconcileOrders(argv.deliveryDate, routes);
+
+  const ordersByKey = _.fromPairs(
+    _.map(orders, (order) => {
+      return [order.intakeRecord[0], order];
+    })
+  );
+
   const templateParameterMaps = await Promise.all(_.map(routes, async (route) => {
     const ticketRecords = await getTicketsForRoutes([route]);
-    const ticketsFields = _.map(ticketRecords, ([, fields,]) => fields);
     const [, routeFields,] = route;
-    return getEmailTemplateParameters(routeFields, ticketsFields);
+    const orders = _.map(ticketRecords, ([ticketKey,]) => {
+      return ordersByKey[ticketKey];
+    });
+    return getEmailTemplateParameters(routeFields, orders);
   }));
 
-  const templateFilename = 'functions/templates/bulk-delivery-volunteer-email.md.mustache';
-  const template = (await fs.promises.readFile(templateFilename)).toString('utf-8');
+  const emailTemplateFilename = 'functions/templates/bulk-delivery-volunteer-email.md.mustache';
+  const emailTemplate = (await fs.promises.readFile(emailTemplateFilename)).toString('utf-8');
 
   const emails = _.map(templateParameterMaps, (view) => {
-    const markdown = Mustache.render(template, view);
+    const markdown = Mustache.render(emailTemplate, view);
     return new Email(markdown, {
       to: view.to,
       cc: 'operations+bulk@bedstuystrong.com',
@@ -86,5 +162,10 @@ async function main() {
 main().then(
   () => console.log('done')
 ).catch(
-  (e) => console.error(e)
+  (e) => {
+    console.error(e);
+    if (e.response && e.response.body && e.response.body.errors) {
+      console.error(e.response.body.errors);
+    }
+  }
 );
