@@ -152,8 +152,10 @@ async function getDeliveryDMContent(fields) {
     content += '*Spending guidance:*\n';
     const householdSize = parseInt(fields.householdSize);
 
-    if (householdSize <= 2) {
-      content += '- $75/per person (1-2 ppl)\n';
+    if (householdSize === 1) {
+      content += '- $100 for a 1-person household\n';
+    } else if (householdSize === 2) {
+      content += '- $150 for a 2-person household\n';
     } else if (householdSize <= 5) {
       content += '- $250 for a medium household (3-5 ppl)\n';
     } else {
