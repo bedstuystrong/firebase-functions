@@ -2,28 +2,14 @@
 const functions = require('firebase-functions');
 const { simpleParser } = require('mailparser');
 const sendgridMail = require('@sendgrid/mail');
-const Busboy = require('busboy');
 const pick = require('lodash/pick');
 const findKey = require('lodash/findKey');
 const { flow, get, map, first } = require('lodash/fp');
 
 const { createFinanceTransaction } = require('./airtable');
+const { sendgridMiddleware } = require('./sendgrid');
 
 sendgridMail.setApiKey(functions.config().sendgrid.api_key);
-
-const sendgridMiddleware = (req, res, next) => {
-  const busboy = new Busboy({ headers: req.headers });
-
-  busboy.on('field', (fieldname, value) => {
-    req.body[fieldname] = value;
-  });
-
-  busboy.on('finish', () => {
-    next();
-  });
-
-  busboy.end(req.rawBody);
-};
 
 const platforms = {
   venmo: {
