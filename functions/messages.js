@@ -4,7 +4,7 @@ const sgMail = require('@sendgrid/mail');
 const showdown = require('showdown');
 const _ = require('lodash');
 
-const { BULK_DELIVERY_STATUSES } = require('./schema');
+const { BULK_DELIVERY_STATUSES, NEEDS_VOLUNTEER_STATUSES } = require('./schema');
 const {
   getTicketDueIn,
   getVolunteerSlackID,
@@ -14,6 +14,7 @@ const {
 const CHANNEL_IDS = functions.config().slack.channel_to_id;
 const STATUS_TO_EMOJI = {
   'Seeking Volunteer': ':exclamation:',
+  'Seeking Other Goods': ':socks:',
   'Bulk Delivery Scheduled': ':package:',
   'Bulk Delivery Confirmed': ':package:',
   'Assigned / In Progress': ':woman-biking:',
@@ -52,7 +53,7 @@ async function getIntakePostContent(fields) {
 
   if (_.includes(BULK_DELIVERY_STATUSES, fields.status)) {
     content += '*No volunteer needed*: This will be part of the next bulk delivery!';
-  } else if (fields.status !== 'Seeking Volunteer') {
+  } else if (!_.includes(NEEDS_VOLUNTEER_STATUSES, fields.status)) {
     content += '*Assigned to*: ';
 
     const deliveryVolunteerslackID = await getVolunteerSlackID(
