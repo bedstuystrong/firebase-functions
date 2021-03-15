@@ -42,6 +42,8 @@ const ITEM_DIRECTORY_TABLE = functions.config().airtable.item_directory_table;
 
 const FINANCE_TRANSACTIONS_TABLE = functions.config().airtable.finance_transactions_table;
 
+const VAX_SUPPORT_TABLE = functions.config().airtable.vax_support_table;
+
 const TABLE_SCHEMAS = {
   [INBOUND_TABLE]: INBOUND_SCHEMA,
   [INTAKE_TABLE]: INTAKE_SCHEMA,
@@ -640,6 +642,37 @@ async function createFinanceTransaction({ direction, platform, amount, name, not
   );
 }
 
+/* VAX SUPPORT */
+
+const vaxSupportBase = airtable.base(functions.config().airtable.vax_support_base_id);
+
+function createVaxSupportVoicemail(phoneNumber, recordingUrl, message) {
+  // TODO: set up polling for vax support inbound? then below applies
+  // NOTE that we set a `null` status for the record, and let the `onNewInbound` poll function set the status
+  const fields = denormalize(
+    {
+      method: 'Phone Call',
+      phoneNumber: phoneNumber,
+      message: message,
+      voicemailRecording: recordingUrl,
+    },
+    INBOUND_SCHEMA
+  );
+  return vaxSupportBase(VAX_SUPPORT_TABLE).create([{ fields }]);
+}
+
+function createVaxSupportMessage(phoneNumber, message) {
+  const fields = denormalize(
+    {
+      method: 'Text Message',
+      phoneNumber: phoneNumber,
+      message: message,
+    },
+    INBOUND_SCHEMA
+  );
+  return vaxSupportBase(VAX_SUPPORT_TABLE).create([{ fields }]);
+}
+
 /* EXPORT */
 
 module.exports = {
@@ -656,6 +689,8 @@ module.exports = {
   createMessage: createMessage,
   createRecord: createRecord,
   createVoicemail: createVoicemail,
+  createVaxSupportMessage: createVaxSupportMessage,
+  createVaxSupportVoicemail: createVaxSupportVoicemail,
   deleteRecord: deleteRecord,
   getAllRecords: getAllRecords,
   getBulkOrder: getBulkOrder,

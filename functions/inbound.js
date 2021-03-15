@@ -8,10 +8,13 @@ const {
   createEmptyVoiceResponse,
   createVoicemailRecordingPrompt,
   requestConnectCall,
+  middlewareByProject,
 } = require('./twilio');
 const {
   createMessage,
   createVoicemail,
+  createVaxSupportMessage,
+  createVaxSupportVoicemail,
   getRecord,
   INBOUND_TABLE,
   VOLUNTEER_FORM_TABLE,
@@ -33,6 +36,19 @@ module.exports = {
     });
   }),
 
+  vaxSupportSms: functions.https.onRequest((req, res) => {
+    const token = functions.config().twilio.vax_auth_token
+    return middlewareByProject(token, req, res, async () => {
+      const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
+      const messageBody = req.body.Body;
+
+      await createVaxSupportMessage(fromNumber, messageBody);
+
+      res.set('Content-Type', 'text/xml');
+      res.send(createEmptyMessageResponse());
+    });
+  }),
+
   /** DEPRECATED */
   voice: functions.https.onRequest((req, res) => {
     return middleware(req, res, () => {
@@ -47,6 +63,19 @@ module.exports = {
       const recordingUrl = `${req.body.RecordingUrl}.mp3`;
 
       await createVoicemail(fromNumber, recordingUrl, '');
+
+      res.set('Content-Type', 'text/xml');
+      res.send(createEmptyVoiceResponse());
+    });
+  }),
+
+  vaxSupportVoicemail: functions.https.onRequest((req, res) => {
+    const token = functions.config().twilio.vax_auth_token
+    return middlewareByProject(token, req, res, async () => {
+      const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
+      const recordingUrl = `${req.body.RecordingUrl}.mp3`;
+
+      await createVaxSupportVoicemail(fromNumber, recordingUrl, '');
 
       res.set('Content-Type', 'text/xml');
       res.send(createEmptyVoiceResponse());
