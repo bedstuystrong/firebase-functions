@@ -56,6 +56,52 @@ module.exports = {
     }
   },
 
+  /**
+   * make it possible to pass different auth tokens for different twilio projects
+   */
+  middlewareByProject: (authToken, req, res, next) => {
+    if (!req.header('X-Twilio-Signature')) {
+      return res.status(400).send('No signature header error');
+    }
+
+    let pathname = req.originalUrl;
+    if (!process.env.FUNCTIONS_EMULATOR) {
+      pathname = process.env.K_SERVICE + pathname.slice(1);
+    }
+
+    let url = URL.format({
+      protocol: req.protocol,
+      host: req.hostname,
+      pathname: pathname,
+    });
+    if (req.originalUrl.search(/\?/) >= 0) {
+      url = url.replace(/%3F/g, '?');
+    }
+
+    let valid;
+    if (url.indexOf('bodySHA256') > 0) {
+      valid = twilio.validateRequestWithBody(
+        authToken,
+        req.header('X-Twilio-Signature'),
+        url,
+        req.rawBody,
+      );
+    } else {
+      valid = twilio.validateRequest(
+        authToken,
+        req.header('X-Twilio-Signature'),
+        url,
+        (req.body || {}),
+      );
+    }
+
+    if (valid) {
+      return next();
+    } else {
+      return res.status(403).send('Twilio Request Validation Failed');
+    }
+  },
+
   createEmptyMessageResponse: () => {
     const twiml = new MessagingResponse();
     return twiml.toString();
