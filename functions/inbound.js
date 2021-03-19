@@ -37,7 +37,7 @@ module.exports = {
   }),
 
   vaxSupportSms: functions.https.onRequest((req, res) => {
-    const token = functions.config().twilio.vax_auth_token
+    const token = functions.config().twilio.vax_support.auth_token;
     return middlewareByProject(token, req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const messageBody = req.body.Body;
@@ -70,7 +70,7 @@ module.exports = {
   }),
 
   vaxSupportVoicemail: functions.https.onRequest((req, res) => {
-    const token = functions.config().twilio.vax_auth_token
+    const token = functions.config().twilio.vax_support.auth_token;
     return middlewareByProject(token, req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
       const recordingUrl = `${req.body.RecordingUrl}.mp3`;
@@ -111,7 +111,7 @@ module.exports = {
 
     const [, recordFields,] = await getRecord(table, recordID);
     const [, volunteerFields,] = await getRecord(VOLUNTEER_FORM_TABLE, volunteerID);
-    
+
     const recordPhoneNumber = parsePhoneNumberFromString(recordFields.phoneNumber, 'US').format('E.164');
     const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerFields.phoneNumber, 'US').format('E.164');
 
@@ -127,6 +127,33 @@ module.exports = {
     await requestConnectCall(volunteerPhoneNumber, recordPhoneNumber);
 
     res.status(200).send(`You'll get a call at ${volunteerFields.phoneNumber} from Bed-Stuy Strong shortly connecting you to ${recordFields.phoneNumber}`);
+  }),
+
+  // NOTE that this endpoint is currently being used for vax support callbacks
+  callback_basic: functions.https.onRequest(async (req, res) => {
+    const volunteerPhoneNumberRaw = req.query.volunteerPhoneNumber;
+    const neighborPhoneNumberRaw = req.query.neighborPhoneNumber;
+
+    if (!(volunteerPhoneNumberRaw && neighborPhoneNumberRaw)) {
+      res.status(400).send('Missing required query params');
+      return;
+    }
+
+    const volunteerPhoneNumber = parsePhoneNumberFromString(volunteerPhoneNumberRaw, 'US').format('E.164');
+    const neighborPhoneNumber = parsePhoneNumberFromString(neighborPhoneNumberRaw, 'US').format('E.164');
+
+    if (!neighborPhoneNumber || !volunteerPhoneNumber) {
+      console.error('Missing a phone number', {
+        neighborPhoneNumber,
+        volunteerPhoneNumber,
+      });
+      res.status(500).send('Missing a phone number on one or more records');
+      return;
+    }
+
+    await requestConnectCall(volunteerPhoneNumber, neighborPhoneNumber, 'VAX_SUPPORT');
+
+    res.status(200).send(`You'll get a call at ${volunteerPhoneNumber} from Bed-Stuy Strong shortly connecting you to ${neighborPhoneNumber}`);
   }),
 
 };

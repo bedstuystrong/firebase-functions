@@ -686,6 +686,7 @@ module.exports = {
   META_TABLE: META_TABLE,
   REIMBURSEMENTS_TABLE: REIMBURSEMENTS_TABLE,
   VOLUNTEER_FORM_TABLE: VOLUNTEER_FORM_TABLE,
+  VAX_SUPPORT_TABLE: VAX_SUPPORT_TABLE,
   createMessage: createMessage,
   createRecord: createRecord,
   createVoicemail: createVoicemail,
