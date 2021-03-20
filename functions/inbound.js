@@ -129,13 +129,18 @@ module.exports = {
     res.status(200).send(`You'll get a call at ${volunteerFields.phoneNumber} from Bed-Stuy Strong shortly connecting you to ${recordFields.phoneNumber}`);
   }),
 
-  // NOTE that this endpoint is currently being used for vax support callbacks
-  callback_basic: functions.https.onRequest(async (req, res) => {
+  vaxSupportCallback: functions.https.onRequest(async (req, res) => {
     const volunteerPhoneNumberRaw = req.query.volunteerPhoneNumber;
     const neighborPhoneNumberRaw = req.query.neighborPhoneNumber;
+    const baseId = req.query.baseId;
 
-    if (!(volunteerPhoneNumberRaw && neighborPhoneNumberRaw)) {
+    if (!(volunteerPhoneNumberRaw && neighborPhoneNumberRaw && baseId)) {
       res.status(400).send('Missing required query params');
+      return;
+    }
+
+    if (baseId !== 'vaxSupport') {
+      res.status(500).send('Incorrect callback base');
       return;
     }
 
