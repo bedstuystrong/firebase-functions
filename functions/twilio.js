@@ -127,7 +127,7 @@ module.exports = {
   },
 
   requestConnectCall: (phoneNumber, connectNumber, table) => {
-    const outbound = table === 'VAX_SUPPORT' ? functions.config.twilio.vax_support.outbound_number : functions.config().twilio.outbound_number;
+    const outbound = table === 'VAX_SUPPORT' ? functions.config().twilio.vax_support.outbound_number : functions.config().twilio.outbound_number;
     const twiml = new VoiceResponse();
 
     twiml.dial(connectNumber);
