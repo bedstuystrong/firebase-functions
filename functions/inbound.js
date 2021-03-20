@@ -9,6 +9,7 @@ const {
   createVoicemailRecordingPrompt,
   requestConnectCall,
   middlewareByProject,
+  vaxSupportRequestConnectCall,
 } = require('./twilio');
 const {
   createMessage,
@@ -73,7 +74,7 @@ module.exports = {
     const token = functions.config().twilio.vax_support.auth_token;
     return middlewareByProject(token, req, res, async () => {
       const fromNumber = parsePhoneNumberFromString(req.body.From).formatNational();
-      const recordingUrl = `${req.body.RecordingUrl}.mp3`;
+      const recordingUrl = req.body.RecordingUrl ? `${req.body.RecordingUrl}.mp3` : '';
 
       await createVaxSupportVoicemail(fromNumber, recordingUrl, '');
 
@@ -156,7 +157,7 @@ module.exports = {
       return;
     }
 
-    await requestConnectCall(volunteerPhoneNumber, neighborPhoneNumber, 'VAX_SUPPORT');
+    await vaxSupportRequestConnectCall(volunteerPhoneNumber, neighborPhoneNumber);
 
     res.status(200).send(`You'll get a call at ${volunteerPhoneNumber} from Bed-Stuy Strong shortly connecting you to ${neighborPhoneNumber}`);
   }),
