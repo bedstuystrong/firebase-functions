@@ -6,6 +6,9 @@ const { MessagingResponse, VoiceResponse } = twilio.twiml;
 
 const client = twilio(functions.config().twilio.sid, functions.config().twilio.auth_token);
 
+// vax support account has different number/auth
+const vaxSupportClient = twilio(functions.config().twilio.vax_support.sid, functions.config().twilio.vax_support.auth_token);
+
 module.exports = {
 
   /**
@@ -134,6 +137,18 @@ module.exports = {
     return client.calls.create({
       to: phoneNumber,
       from: functions.config().twilio.outbound_number,
+      twiml: twiml.toString(),
+    });
+  },
+
+  vaxSupportRequestConnectCall: (phoneNumber, connectNumber) => {
+    const twiml = new VoiceResponse();
+
+    twiml.dial(connectNumber);
+
+    return vaxSupportClient.calls.create({
+      to: phoneNumber,
+      from: functions.config().twilio.vax_support.outbound_number,
       twiml: twiml.toString(),
     });
   },
