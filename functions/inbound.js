@@ -140,7 +140,7 @@ module.exports = {
       return;
     }
 
-    if (baseId !== 'vaxSupport') {
+    if (baseId !== functions.config().airtable.vax_support_base_id) {
       res.status(500).send('Incorrect callback base');
       return;
     }
