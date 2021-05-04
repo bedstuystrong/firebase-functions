@@ -305,7 +305,6 @@ const renderSingleTicketShoppingList = (groups) => {
 
 async function getTicketSummaryBlocks(
   tickets,
-  minDueDate = 3,
   maxNumTickets = 15
 ) {
   if (tickets.length === 0) {
@@ -358,7 +357,7 @@ async function getTicketSummaryBlocks(
 
   const ticketIDsToInclude = _.slice(
     _.map(
-      _.filter(sortedTickets, ([id, ,]) => idToDueDate[id] <= minDueDate),
+      sortedTickets,
       ([id, ,]) => id
     ),
     0,
@@ -392,26 +391,29 @@ async function getTicketSummaryBlocks(
       }
     );
 
-    const ticketsByUrgency = _.groupBy(filteredNeighborhoodTickets, ([id]) => {
+    const getTicketUrgency = ([id]) => {
       const dueDate = idToDueDate[id];
       if (dueDate < 0) {
         return 'Overdue';
-      } else if (dueDate < 1) {
-        return 'Due Today';
+      } else if (dueDate < 7) {
+        return 'Due This Week';
       } else {
-        return 'Not Due Today';
+        return 'Not Due This Week';
       }
-    });
+    };
+
+    const filteredTicketsByUrgency = _.groupBy(filteredNeighborhoodTickets, getTicketUrgency);
+    const allTicketsByUrgency = _.groupBy(neighborhoodTickets, getTicketUrgency);
 
     const urgencyEmoji = {
       'Overdue': ':fire:',
-      'Due Today': ':warning:',
-      'Not Due Today': ':turtle:',
+      'Due This Week': ':warning:',
+      'Not Due This Week': ':turtle:',
     };
 
     const relevantUrgencies = _.filter(
-      ['Overdue', 'Due Today', 'Not Due Today'],
-      (urgency) => { return ticketsByUrgency[urgency]; },
+      ['Overdue', 'Due This Week', 'Not Due This Week'],
+      (urgency) => { return filteredTicketsByUrgency[urgency]; },
     );
 
     _.forEach(relevantUrgencies, (urgency) => {
@@ -420,12 +422,12 @@ async function getTicketSummaryBlocks(
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `${urgencyEmoji[urgency]} ${ticketsByUrgency[urgency].length} _${urgency}_`,
+            text: `${urgencyEmoji[urgency]} ${allTicketsByUrgency[urgency].length} _${urgency}_`,
           }
         }
       );
   
-      _.forEach(ticketsByUrgency[urgency], ([, fields,]) => {
+      _.forEach(filteredTicketsByUrgency[urgency], ([, fields,]) => {
         // NOTE that it is a better user experience if we link to a thread, but we only have threads for new 
         // tickets, and backfilling them ended up being too much work
         const link = fields.slackPostThreadLink || fields.slackPostLink;
