@@ -39,6 +39,7 @@ const {
   INTAKE_TABLE,
   VOLUNTEER_FORM_TABLE,
 } = require('../airtable');
+const { PHONE_NUMBERS_SCHEMA } = require('../schema');
 
 const accountSid = functions.config().twilio.mass_messaging.sid;
 const authToken = functions.config().twilio.mass_messaging.auth_token;
@@ -52,11 +53,11 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function readCSV(filename) {
+function readCSV(filename, headers) {
   return new Promise((resolve, reject) => {
     let rows = [];
     fs.createReadStream(filename)
-      .pipe(csv(['phoneNumber']))
+      .pipe(csv(headers))
       .on('data', (data) => {
         rows.push(data);
       })
@@ -116,32 +117,32 @@ const onState = (state) => {
 
 const multiselectInstructions = 'space to select, enter to submit';
 const configPrompts = [
-  {
-    type: 'multiselect',
-    name: 'targets',
-    message: 'Send to',
-    instructions: false,
-    hint: multiselectInstructions,
-    onState: onState,
-    choices: [
-      { title: 'Delivery recipients', value: TARGETS.tickets.key },
-      { title: 'Volunteers', value: TARGETS.volunteers.key },
-    ],
-    min: 1,
-  },
-  {
-    type: USE_EXCLUDES ? 'multiselect' : null,
-    name: 'excludes',
-    message: 'Exclude groups',
-    instructions: false,
-    hint: multiselectInstructions,
-    onState: onState,
-    choices: [
-      { title: 'Moved away', value: EXCLUDE_GROUPS.moved },
-      { title: 'Already voted', value: EXCLUDE_GROUPS.already_voted },
-      { title: 'No voting messages', value: EXCLUDE_GROUPS.no_voting },
-    ],
-  },
+  // {
+  //   type: 'multiselect',
+  //   name: 'targets',
+  //   message: 'Send to',
+  //   instructions: false,
+  //   hint: multiselectInstructions,
+  //   onState: onState,
+  //   choices: [
+  //     { title: 'Delivery recipients', value: TARGETS.tickets.key },
+  //     { title: 'Volunteers', value: TARGETS.volunteers.key },
+  //   ],
+  //   min: 1,
+  // },
+  // {
+  //   type: USE_EXCLUDES ? 'multiselect' : null,
+  //   name: 'excludes',
+  //   message: 'Exclude groups',
+  //   instructions: false,
+  //   hint: multiselectInstructions,
+  //   onState: onState,
+  //   choices: [
+  //     { title: 'Moved away', value: EXCLUDE_GROUPS.moved },
+  //     { title: 'Already voted', value: EXCLUDE_GROUPS.already_voted },
+  //     { title: 'No voting messages', value: EXCLUDE_GROUPS.no_voting },
+  //   ],
+  // },
   {
     type: 'text',
     name: 'body',
@@ -155,6 +156,13 @@ const configPrompts = [
       ].join('\n') + '\n';
     },
   },
+  {
+    type: prev => prev.includes('\\n') ? 'confirm' : null,
+    name: 'split',
+    message: 'Split into multiple messages?',
+    initial: true,
+    onState: onState,
+  }
 ];
 
 const testPrompts = [
@@ -181,9 +189,10 @@ const testPrompts = [
     console.log('\n');
 
     let allPhoneNumbers;
+    let phoneNumberMeta;
 
     if (argv.contacts) {
-      allPhoneNumbers = _.chain(await readCSV(argv.contacts))
+      allPhoneNumbers = _.chain(await readCSV(argv.contacts, ['phoneNumber']))
         .map((value) => {
           const phoneNumber = parsePhoneNumberFromString(value.phoneNumber, 'US');
           if (phoneNumber) {
@@ -195,7 +204,7 @@ const testPrompts = [
         .compact()
         .value();
       
-      configPrompts[0].type = null;
+      // configPrompts[0].type = null;
 
       configPrompts.unshift({
         name: 'contacts',
@@ -209,15 +218,41 @@ const testPrompts = [
       });
     }
 
+    if (argv.meta) {
+      const headers = ['Phone Number (E.164)', 'Phone Number', 'Type', 'Tags'];
+      const transformKeys = _.invert(PHONE_NUMBERS_SCHEMA);
+      phoneNumberMeta = _.chain(await readCSV(argv.meta, headers))
+        .map((value) => _.mapKeys(value, (_v, k) => transformKeys[k]))
+        .map((value) => {
+          if (value.tags) {
+            value.tags = value.tags.split(',');
+          } else {
+            value.tags = [];
+          }
+          return value;
+        })
+        .value();
+    }
+
     const config = await prompts(configPrompts);
 
+    const bodies = config.split ? config.body.split('\\n') : [config.body];
+
     const splitBody = splitter.split(config.body);
-    if (splitBody.characterSet !== 'GSM') {
+    const splitBodies = bodies.map(body => splitter.split(body));
+    if (_.some(splitBodies, split => split.characterSet !== 'GSM')) {
       console.error('Message body is incompatible with GSM encoding. Please use the Message Segment Calculator: https://twiliodeved.github.io/message-segment-calculator/');
       return process.exit(1);
     }
 
-    console.log(`\nMessage segments: ${splitBody.parts.length}`);
+    if (bodies.length > 1) {
+      console.log(
+        '\nMessage segments:\n' +
+        splitBodies.map((split, index) => `Message ${index + 1}: ${split.parts.length} parts`).join('\n')
+      );
+    } else {
+      console.log(`\nMessage segments: ${splitBody.parts.length}`);
+    }
 
     let spinner = ora('Getting phone numbers').start();
 
@@ -227,9 +262,13 @@ const testPrompts = [
       ));
     }
 
-    const phoneNumberMeta = (await getPhoneNumberMeta()).map(([, fields,]) => fields);
+    if (!phoneNumberMeta) {
+      phoneNumberMeta = (await getPhoneNumberMeta()).map(([, fields,]) => fields);
+    }
 
     spinner.text = 'Updating phone numbers';
+    
+    let newMetaRecords = [];
 
     let phoneNumbers = _.compact(await Promise.all(
       allPhoneNumbers.map(async (number) => {
@@ -240,10 +279,15 @@ const testPrompts = [
         } else {
           const type = await lookupPhoneType(number);
           if (type) {
-            const [, fields] = await createRecord(PHONE_NUMBERS_TABLE, {
+            // const [, fields] = await createRecord(PHONE_NUMBERS_TABLE, {
+            //   phoneNumberE164: number,
+            //   type: type,
+            // });
+            const fields = {
               phoneNumberE164: number,
               type: type,
-            });
+            };
+            newMetaRecords.push(fields);
             return fields;
           } else {
             return null;
@@ -251,6 +295,13 @@ const testPrompts = [
         }
       })
     ));
+
+    if (newMetaRecords.length) {
+      console.log('New phone number records:');
+    }
+    newMetaRecords.forEach((record) => {
+      console.log(record.phoneNumberE164 + ',' + record.type);
+    });
 
     spinner.text = 'Filtering phone numbers';
     
@@ -277,15 +328,19 @@ const testPrompts = [
     spinner = ora('Sending test').start();
 
     const testBindings = createBindings(testRun.numbers);
-
-    const testNotification = await twilio.notify.services(notifySid).notifications.create({
-      toBinding: testBindings,
-      body: config.body,
-    });
+    const testNotifications = [];
+    for (const body of bodies) {
+      await sleep(5000);
+      const testNotification = await twilio.notify.services(notifySid).notifications.create({
+        toBinding: testBindings,
+        body: body,
+      });
+      testNotifications.push(testNotification);
+    }
 
     spinner.succeed('Test sent');
 
-    console.log('Test notification SID', testNotification.sid);
+    console.log('Test notification SIDs', _.map(testNotifications, 'sid'));
 
     const confirmationPrompts = [
       {
@@ -297,7 +352,7 @@ const testPrompts = [
         onRender(kleur) {
           this.msg = [
             kleur.bold().white(`Send the following message to ${phoneNumbers.length} phone numbers?`),
-            kleur.reset().cyan(config.body),
+            kleur.reset().cyan(bodies.join('\n\n')),
           ].join('\n') + '\n';
         },
       }
@@ -322,15 +377,20 @@ const testPrompts = [
     spinner.text = 'Sending message';
 
     const bindings = createBindings(phoneNumbers.map(meta => meta.phoneNumberE164));
+    const notifications = [];
 
-    const notification = await twilio.notify.services(notifySid).notifications.create({
-      toBinding: bindings,
-      body: config.body,
-    });
+    for (const body of bodies) {
+      await sleep(5000);
+      const notification = await twilio.notify.services(notifySid).notifications.create({
+        toBinding: bindings,
+        body: body,
+      });
+      notifications.push(notification);
+    }
 
     spinner.succeed(`Message sent to ${phoneNumbers.length} phone numbers`);
 
-    console.log('Notification SID', notification.sid);
+    console.log('Notification SIDs', _.map(notifications, 'sid'));
 
     return process.exit(0);
   } catch (e) {

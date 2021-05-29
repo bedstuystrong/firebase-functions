@@ -39,7 +39,7 @@
     "showdown": "^1.9.1",
     "slack": "^11.0.2",
     "split-sms": "^0.1.7",
-    "twilio": "^3.41.1",
+    "twilio": "^3.63.0",
     "yargs": "^16.2.0"
   },
   "devDependencies": {
