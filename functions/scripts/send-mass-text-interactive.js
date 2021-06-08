@@ -3,7 +3,7 @@
 /**
  * Interactive mass texting script
  * Usage:
- *    firebase emulators:exec "scripts/send-mass-text-2.js --contacts [full path to csv] [--excludes]"
+ *    firebase emulators:exec "scripts/send-mass-text-interactive.js --contacts [full path to csv] [--excludes]"
  * 
  * Contacts CSV should contain at least one column with the header `phoneNumber`
  */
