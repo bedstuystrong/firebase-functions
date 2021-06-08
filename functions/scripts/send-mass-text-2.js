@@ -1,17 +1,13 @@
 #!/usr/bin/env node
 
-const USE_EXCLUDES = false;
+/**
+ * Interactive mass texting script
+ * Usage:
+ *    firebase emulators:exec "scripts/send-mass-text-2.js --contacts [full path to csv] [--excludes]"
+ * 
+ * Contacts CSV should contain at least one column with the header `phoneNumber`
+ */
 
-const TARGETS = {
-  tickets: {
-    key: 'tickets',
-    get: async () => await getPhoneNumbers(INTAKE_TABLE, { Status: 'Complete', Neighborhood: 'SE' }),
-  },
-  volunteers: {
-    key: 'volunteers',
-    get: async () => await getPhoneNumbers(VOLUNTEER_FORM_TABLE),
-  },
-};
 const EXCLUDE_GROUPS = {
   moved: 'moved away',
   no_voting: 'no voting messages',
@@ -36,10 +32,7 @@ const {
   getAllRecords,
   createRecord,
   PHONE_NUMBERS_TABLE,
-  INTAKE_TABLE,
-  VOLUNTEER_FORM_TABLE,
 } = require('../airtable');
-const { PHONE_NUMBERS_SCHEMA } = require('../schema');
 
 const accountSid = functions.config().twilio.mass_messaging.sid;
 const authToken = functions.config().twilio.mass_messaging.auth_token;
@@ -47,7 +40,17 @@ const notifySid = functions.config().twilio.mass_messaging.notify_sid;
 
 const twilio = createTwilioClient(accountSid, authToken);
 
-const argv = yargs(hideBin(process.argv)).argv;
+const argv = yargs(hideBin(process.argv))
+  .option('contacts', {
+    alias: 'c',
+    describe: 'path to contacts CSV'
+  })
+  .option('excludes', {
+    describe: 'enable excluding by tag'
+  })
+  .demandOption('contacts')
+  .help()
+  .argv;
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -82,24 +85,6 @@ const lookupPhoneType = async (phoneNumber) => {
   }
 };
 
-const extractNumber = ([, fields, ]) => {
-  if (fields.neighborhood !== 'SE') console.log(fields.neighborhood)
-  const phoneNumber = fields.phoneNumber;
-  if (!phoneNumber) return null;
-  const parsed = parsePhoneNumberFromString(phoneNumber.split('/')[0], 'US');
-  if (!parsed) return null;
-  return parsed.format('E.164');
-};
-
-const getPhoneNumbers = async (table, filter = {}) => {
-  const clauses = _.entries(filter).map(([key, value]) => `{${key}} = "${value}"`);
-  const records = await getAllRecords(table, {
-    fields: ['Phone Number', ..._.keys(filter)],
-    filterByFormula: `AND(${clauses.join(', ')})`,
-  });
-  return _.uniq(_.compact(records.map(extractNumber)));
-};
-
 const getPhoneNumberMeta = async () => {
   return await getAllRecords(PHONE_NUMBERS_TABLE);
 };
@@ -116,33 +101,20 @@ const onState = (state) => {
 };
 
 const multiselectInstructions = 'space to select, enter to submit';
+const excludesPrompt = {
+  type: 'multiselect',
+  name: 'excludes',
+  message: 'Exclude groups',
+  instructions: false,
+  hint: multiselectInstructions,
+  onState: onState,
+  choices: [
+    { title: 'Moved away', value: EXCLUDE_GROUPS.moved },
+    // { title: 'Already voted', value: EXCLUDE_GROUPS.already_voted },
+    { title: 'No voting messages', value: EXCLUDE_GROUPS.no_voting },
+  ],
+};
 const configPrompts = [
-  // {
-  //   type: 'multiselect',
-  //   name: 'targets',
-  //   message: 'Send to',
-  //   instructions: false,
-  //   hint: multiselectInstructions,
-  //   onState: onState,
-  //   choices: [
-  //     { title: 'Delivery recipients', value: TARGETS.tickets.key },
-  //     { title: 'Volunteers', value: TARGETS.volunteers.key },
-  //   ],
-  //   min: 1,
-  // },
-  // {
-  //   type: USE_EXCLUDES ? 'multiselect' : null,
-  //   name: 'excludes',
-  //   message: 'Exclude groups',
-  //   instructions: false,
-  //   hint: multiselectInstructions,
-  //   onState: onState,
-  //   choices: [
-  //     { title: 'Moved away', value: EXCLUDE_GROUPS.moved },
-  //     { title: 'Already voted', value: EXCLUDE_GROUPS.already_voted },
-  //     { title: 'No voting messages', value: EXCLUDE_GROUPS.no_voting },
-  //   ],
-  // },
   {
     type: 'text',
     name: 'body',
@@ -188,51 +160,32 @@ const testPrompts = [
   try {
     console.log('\n');
 
-    let allPhoneNumbers;
-    let phoneNumberMeta;
-
-    if (argv.contacts) {
-      allPhoneNumbers = _.chain(await readCSV(argv.contacts, ['phoneNumber']))
-        .map((value) => {
-          const phoneNumber = parsePhoneNumberFromString(value.phoneNumber, 'US');
-          if (phoneNumber) {
-            return phoneNumber.format('E.164');
-          } else {
-            return null;
-          }
-        })
-        .compact()
-        .value();
-      
-      // configPrompts[0].type = null;
-
-      configPrompts.unshift({
-        name: 'contacts',
-        type: 'confirm',
-        initial: true,
-        message: 'Using contact list from file',
-        onRender(kleur) {
-          this.msg = kleur.reset('Using contact list from file ') + kleur.underline(path.basename(argv.contacts))
-            + kleur.reset().cyan(`\n${allPhoneNumbers.length} phone numbers`) + '\n';
-        },
-      });
+    if (argv.excludes) {
+      configPrompts.unshift(excludesPrompt);
     }
 
-    if (argv.meta) {
-      const headers = ['Phone Number (E.164)', 'Phone Number', 'Type', 'Tags'];
-      const transformKeys = _.invert(PHONE_NUMBERS_SCHEMA);
-      phoneNumberMeta = _.chain(await readCSV(argv.meta, headers))
-        .map((value) => _.mapKeys(value, (_v, k) => transformKeys[k]))
-        .map((value) => {
-          if (value.tags) {
-            value.tags = value.tags.split(',');
-          } else {
-            value.tags = [];
-          }
-          return value;
-        })
-        .value();
-    }
+    const allPhoneNumbers = _.chain(await readCSV(argv.contacts, ['phoneNumber']))
+      .map((value) => {
+        const phoneNumber = parsePhoneNumberFromString(value.phoneNumber, 'US');
+        if (phoneNumber) {
+          return phoneNumber.format('E.164');
+        } else {
+          return null;
+        }
+      })
+      .compact()
+      .value();
+    
+    configPrompts.unshift({
+      name: 'contacts',
+      type: 'confirm',
+      initial: true,
+      message: 'Using contact list from file',
+      onRender(kleur) {
+        this.msg = kleur.reset('Using contact list from file ') + kleur.underline(path.basename(argv.contacts))
+          + kleur.reset().cyan(`\n${allPhoneNumbers.length} phone numbers`) + '\n';
+      },
+    });
 
     const config = await prompts(configPrompts);
 
@@ -256,20 +209,10 @@ const testPrompts = [
 
     let spinner = ora('Getting phone numbers').start();
 
-    if (!allPhoneNumbers) {
-      allPhoneNumbers = _.intersection(...await Promise.all(
-        config.targets.map((async targetKey => await TARGETS[targetKey].get()))
-      ));
-    }
-
-    if (!phoneNumberMeta) {
-      phoneNumberMeta = (await getPhoneNumberMeta()).map(([, fields,]) => fields);
-    }
+    const phoneNumberMeta = (await getPhoneNumberMeta()).map(([, fields,]) => fields);
 
     spinner.text = 'Updating phone numbers';
     
-    let newMetaRecords = [];
-
     let phoneNumbers = _.compact(await Promise.all(
       allPhoneNumbers.map(async (number) => {
         const meta = _.find(phoneNumberMeta, ['phoneNumberE164', number]);
@@ -279,15 +222,10 @@ const testPrompts = [
         } else {
           const type = await lookupPhoneType(number);
           if (type) {
-            // const [, fields] = await createRecord(PHONE_NUMBERS_TABLE, {
-            //   phoneNumberE164: number,
-            //   type: type,
-            // });
-            const fields = {
+            const [, fields] = await createRecord(PHONE_NUMBERS_TABLE, {
               phoneNumberE164: number,
               type: type,
-            };
-            newMetaRecords.push(fields);
+            });
             return fields;
           } else {
             return null;
@@ -295,13 +233,6 @@ const testPrompts = [
         }
       })
     ));
-
-    if (newMetaRecords.length) {
-      console.log('New phone number records:');
-    }
-    newMetaRecords.forEach((record) => {
-      console.log(record.phoneNumberE164 + ',' + record.type);
-    });
 
     spinner.text = 'Filtering phone numbers';
     
