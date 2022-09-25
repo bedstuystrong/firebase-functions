@@ -20,6 +20,10 @@ const platforms = {
     from: '',
     regex: /USAA Confirmation ID: [\d\n\r]+Zelle ID:/m,
   },
+  amalgamated_zelle: {
+    from: 'noreply@online.amalgamatedbank.com',
+    regex: /From: Amalgamated Bank <noreply@online\.amalgamatedbank\.com>/,
+  },
   paypal: {
     from: 'service@paypal.com',
     regex: /From: service@paypal\.com <service@paypal\.com>/,
@@ -84,10 +88,31 @@ const extractPaymentDetails = (platform, email) => {
     }
     break;
   }
+  case 'amalgamated_zelle': {
+    details.platform = 'Zelle';
+    const fromMatches = email.subject.match(/Notification - (.*) sent you (\$[\d.,]+)/);
+    const toMatches = email.subject.match(/Notification - Your \s?(\$[\d.,]+) to (.*) was sent/);
+    const noteMatches = email.html.match(/<p class="memo" [^>]+>(.*)<\/p>/m);
+
+    if (fromMatches) {
+      details.direction = 'In';
+      details.name = fromMatches[1];
+      details.amount = fromMatches[2];
+    } else if (toMatches) {
+      details.direction = 'Out';
+      details.name = toMatches[2];
+      details.amount = '-' + toMatches[1];
+    }
+
+    if (noteMatches) {
+      details.note = noteMatches[1];
+    }
+
+    break;
+  }
   case 'paypal': {
     details.platform = 'Paypal';
     const text = email.html.replace(/(<([^>]+)>)/ig, '');
-    console.log('paypal text', text)
     const fromMatches = text.match(/(.*) sent you ([$\d.,]+)/);
     const toMatches = text.match(/You sent ([$\d.,]+) USD to (.*)/);
     const noteMatches = text.match(/\[image: quote\] (.*) \[image: quote\]/);
